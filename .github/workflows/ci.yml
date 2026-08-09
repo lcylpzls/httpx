@@ -53,6 +53,44 @@ jobs:
           name: coverage-${{ matrix.go }}
           path: coverage.out
 
+  linux-distros:
+    name: test (${{ matrix.distro }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian:bookworm
+            prepare: apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl tar
+          - distro: fedora:41
+            prepare: dnf -y install git ca-certificates curl tar
+          - distro: rockylinux:9
+            prepare: dnf -y install --setopt=install_weak_deps=False git
+          - distro: archlinux:latest
+            prepare: pacman -Syu --noconfirm git ca-certificates curl tar
+          - distro: alpine:3.20
+            prepare: apk add --no-cache git ca-certificates curl tar
+    runs-on: ubuntu-latest
+    container: ${{ matrix.distro }}
+    env:
+      # 容器矩阵仅验证纯 Go 构建链路（glibc/musl 差异），
+      # cgo/race 由 ubuntu 主机作业覆盖。
+      CGO_ENABLED: '0'
+    steps:
+      - name: Prepare environment
+        run: ${{ matrix.prepare }}
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.x'
+          check-latest: true
+
+      - name: Test
+        run: go test -count=1 ./...
+
   fuzz:
     runs-on: ubuntu-latest
     steps:
