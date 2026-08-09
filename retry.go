@@ -64,9 +64,10 @@ func FixedBackoff(interval time.Duration) Backoff {
 
 // retryPolicy 描述重试行为,maxAttempts 含首次尝试。
 type retryPolicy struct {
-	maxAttempts int
-	backoff     Backoff
-	retryable   func(*http.Request, *http.Response, error) bool
+	maxAttempts  int
+	backoff      Backoff
+	retryable    func(*http.Request, *http.Response, error) bool
+	totalTimeout time.Duration
 }
 
 // retryableStatuses 是可重试的响应状态码:
@@ -106,6 +107,13 @@ func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, err
 	if policy == nil {
 		return c.attempt(req, 1)
 	}
+	if policy.totalTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, policy.totalTimeout)
+		defer cancel()
+		// RoundTrip 使用请求的 context,替换为带总时长限制的 ctx。
+		req = req.WithContext(ctx)
+	}
 	current := req
 	for attempt := 1; ; attempt++ {
 		if attempt > 1 {
@@ -130,7 +138,9 @@ func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, err
 		// 最后一次尝试:网络错误包装为重试耗尽,状态码场景返回最终响应。
 		if attempt == policy.maxAttempts {
 			if err != nil {
-				return nil, errx.Wrap(err, errx.KindUnavailable, CodeRetryExhausted, "重试耗尽")
+				return nil, errx.Wrap(err, errx.KindUnavailable, CodeRetryExhausted, "重试耗尽").
+					WithField("method", req.Method).
+					WithField("url", req.URL.String())
 			}
 			return resp, nil
 		}

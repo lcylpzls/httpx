@@ -81,11 +81,18 @@ client, err := httpx.New(httpx.WithProtocol(httpx.ProtocolHTTP3))
 
 - [docs/README.md](docs/README.md) — 文档索引
 - [docs/client-research.md](docs/client-research.md) — 热门 HTTP 客户端调研手册
+- [docs/operations.md](docs/operations.md) — 运行手册(配置/指标/日志)
+- [docs/security.md](docs/security.md) — 安全模型
 - [examples/basic](examples/basic) — 基础请求与 JSON 解析
 - [examples/retry](examples/retry) — 幂等重试与退避
 - [examples/session](examples/session) — Cookie 会话与重定向
 - [examples/limit](examples/limit) — 并发限流与 DNS 缓存
 - [examples/http3](examples/http3) — HTTP/3 接入
+
+## 贡献与安全
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — 开发流程与质量门槛
+- [SECURITY.md](SECURITY.md) — 安全说明与漏洞报告
 
 ## License
 

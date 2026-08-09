@@ -28,7 +28,8 @@ func init() {
 				HandshakeIdleTimeout: defaultHandshakeIdleTimeout,
 				MaxIdleTimeout:       defaultMaxIdleTimeout,
 			},
-			DisableCompression: cfg.DisableCompression,
+			DisableCompression:     cfg.DisableCompression,
+			MaxResponseHeaderBytes: int(cfg.MaxResponseHeaderBytes),
 		}
 		if cfg.TLSClientConfig != nil {
 			tr.TLSClientConfig = cfg.TLSClientConfig.Clone()

@@ -19,6 +19,8 @@ type ProtocolConfig struct {
 	TLSClientConfig *tls.Config
 	// DisableCompression 是否关闭自动解压。
 	DisableCompression bool
+	// MaxResponseHeaderBytes 响应头大小上限。
+	MaxResponseHeaderBytes int64
 }
 
 // h3Builder 由 httpx/http3 子包 init 注册,仅 ProtocolHTTP3 使用。
@@ -63,15 +65,18 @@ func newStdTransport(cfg config, h2 bool) *http.Transport {
 		KeepAlive: 30 * time.Second,
 	}
 	tr := &http.Transport{
-		DialContext:           dialer.DialContext,
-		ForceAttemptHTTP2:     h2,
-		Proxy:                 http.ProxyFromEnvironment,
-		MaxIdleConns:          cfg.maxIdleConns,
-		MaxIdleConnsPerHost:   cfg.maxIdleConnsPerHost,
-		IdleConnTimeout:       cfg.idleConnTimeout,
-		TLSHandshakeTimeout:   cfg.tlsHandshakeTimeout,
-		ResponseHeaderTimeout: cfg.responseHeaderTimeout,
-		DisableCompression:    cfg.disableCompression,
+		DialContext:            dialer.DialContext,
+		ForceAttemptHTTP2:      h2,
+		Proxy:                  http.ProxyFromEnvironment,
+		MaxIdleConns:           cfg.maxIdleConns,
+		MaxIdleConnsPerHost:    cfg.maxIdleConnsPerHost,
+		IdleConnTimeout:        cfg.idleConnTimeout,
+		TLSHandshakeTimeout:    cfg.tlsHandshakeTimeout,
+		ResponseHeaderTimeout:  cfg.responseHeaderTimeout,
+		DisableCompression:     cfg.disableCompression,
+		MaxResponseHeaderBytes: cfg.maxResponseHeaderBytes,
+		MaxConnsPerHost:        cfg.maxConnsPerHost,
+		ExpectContinueTimeout:  cfg.expectContinueTimeout,
 	}
 	if cfg.proxySet {
 		tr.Proxy = cfg.proxy
@@ -104,6 +109,7 @@ func newHTTP2Transport(cfg config) *http2.Transport {
 		DisableCompression: cfg.disableCompression,
 		ReadIdleTimeout:    cfg.h2ReadIdleTimeout,
 		PingTimeout:        cfg.h2PingTimeout,
+		MaxHeaderListSize:  headerListSize(cfg.maxResponseHeaderBytes),
 		DialTLSContext: func(ctx context.Context, network, addr string, tlsCfg *tls.Config) (net.Conn, error) {
 			raw, err := dialer.DialContext(ctx, network, addr)
 			if err != nil {
@@ -126,6 +132,18 @@ func newHTTP2Transport(cfg config) *http2.Transport {
 		tr.TLSClientConfig = cfg.tlsClientConfig.Clone()
 	}
 	return tr
+}
+
+// headerListSize 将响应头大小上限转换为 http2 SETTINGS 值;
+// 超过 uint32 上限时取最大值。
+func headerListSize(n int64) uint32 {
+	if n <= 0 {
+		return 0
+	}
+	if n > int64(^uint32(0)) {
+		return ^uint32(0)
+	}
+	return uint32(n)
 }
 
 // dialWithDNSCache 优先使用缓存解析结果拨号:

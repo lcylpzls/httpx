@@ -205,6 +205,9 @@ func (c *Client) buildRequest(ctx context.Context, method, rawURL string, body a
 	if ro.userAgent != "" {
 		req.Header.Set("User-Agent", ro.userAgent)
 	}
+	if ro.requestID != "" {
+		req.Header.Set("X-Request-ID", ro.requestID)
+	}
 	if ro.timeout > 0 {
 		req = req.WithContext(context.WithValue(req.Context(), reqTimeoutKey{}, ro.timeout))
 	}

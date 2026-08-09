@@ -16,14 +16,15 @@ import (
 
 // 生产实践默认值:连接池与超时参数在未显式配置时使用。
 const (
-	defaultMaxIdleConns          = 100
-	defaultMaxIdleConnsPerHost   = 10
-	defaultIdleConnTimeout       = 90 * time.Second
-	defaultDialTimeout           = 10 * time.Second
-	defaultTLSHandshakeTimeout   = 10 * time.Second
-	defaultResponseHeaderTimeout = 30 * time.Second
-	defaultSlowThreshold         = 100 * time.Millisecond
-	defaultMaxRedirects          = 10
+	defaultMaxIdleConns           = 100
+	defaultMaxIdleConnsPerHost    = 10
+	defaultIdleConnTimeout        = 90 * time.Second
+	defaultDialTimeout            = 10 * time.Second
+	defaultTLSHandshakeTimeout    = 10 * time.Second
+	defaultResponseHeaderTimeout  = 30 * time.Second
+	defaultSlowThreshold          = 100 * time.Millisecond
+	defaultMaxRedirects           = 10
+	defaultMaxResponseHeaderBytes = 10 << 20 // 10MiB,与 HTTP/2 默认一致
 )
 
 // Protocol 表示 HTTP 协议选择,在 New 时固定,运行期不可变。
@@ -58,45 +59,49 @@ func (p Protocol) String() string {
 
 // config 是 Client 的完整配置,由 Option 按顺序修改。
 type config struct {
-	protocol              Protocol
-	timeout               time.Duration
-	dialTimeout           time.Duration
-	tlsHandshakeTimeout   time.Duration
-	responseHeaderTimeout time.Duration
-	maxIdleConns          int
-	maxIdleConnsPerHost   int
-	idleConnTimeout       time.Duration
-	tlsClientConfig       *tls.Config
-	retry                 *retryPolicy
-	logger                logx.Logger
-	logRequest            bool
-	slowThreshold         time.Duration
-	metrics               Metrics
-	maxRedirects          int
-	redirectPolicy        func(*http.Request, []*http.Request) error
-	cookieJar             http.CookieJar
-	hooks                 Hooks
-	proxy                 func(*http.Request) (*url.URL, error)
-	proxySet              bool
-	disableCompression    bool
-	dnsCache              *DNSCache
-	maxConcurrency        int
-	h2ReadIdleTimeout     time.Duration
-	h2PingTimeout         time.Duration
+	protocol               Protocol
+	timeout                time.Duration
+	dialTimeout            time.Duration
+	tlsHandshakeTimeout    time.Duration
+	responseHeaderTimeout  time.Duration
+	maxIdleConns           int
+	maxIdleConnsPerHost    int
+	idleConnTimeout        time.Duration
+	tlsClientConfig        *tls.Config
+	retry                  *retryPolicy
+	logger                 logx.Logger
+	logRequest             bool
+	slowThreshold          time.Duration
+	metrics                Metrics
+	maxRedirects           int
+	redirectPolicy         func(*http.Request, []*http.Request) error
+	cookieJar              http.CookieJar
+	hooks                  Hooks
+	proxy                  func(*http.Request) (*url.URL, error)
+	proxySet               bool
+	disableCompression     bool
+	dnsCache               *DNSCache
+	maxConcurrency         int
+	h2ReadIdleTimeout      time.Duration
+	h2PingTimeout          time.Duration
+	maxResponseHeaderBytes int64
+	maxConnsPerHost        int
+	expectContinueTimeout  time.Duration
 }
 
 // defaultConfig 返回生产实践默认配置。
 func defaultConfig() config {
 	return config{
-		protocol:              ProtocolAuto,
-		dialTimeout:           defaultDialTimeout,
-		tlsHandshakeTimeout:   defaultTLSHandshakeTimeout,
-		responseHeaderTimeout: defaultResponseHeaderTimeout,
-		maxIdleConns:          defaultMaxIdleConns,
-		maxIdleConnsPerHost:   defaultMaxIdleConnsPerHost,
-		idleConnTimeout:       defaultIdleConnTimeout,
-		slowThreshold:         defaultSlowThreshold,
-		maxRedirects:          defaultMaxRedirects,
+		protocol:               ProtocolAuto,
+		dialTimeout:            defaultDialTimeout,
+		tlsHandshakeTimeout:    defaultTLSHandshakeTimeout,
+		responseHeaderTimeout:  defaultResponseHeaderTimeout,
+		maxIdleConns:           defaultMaxIdleConns,
+		maxIdleConnsPerHost:    defaultMaxIdleConnsPerHost,
+		idleConnTimeout:        defaultIdleConnTimeout,
+		slowThreshold:          defaultSlowThreshold,
+		maxRedirects:           defaultMaxRedirects,
+		maxResponseHeaderBytes: defaultMaxResponseHeaderBytes,
 	}
 }
 
@@ -180,15 +185,19 @@ type RetryPolicy struct {
 	// Retryable 自定义可重试判定;nil 使用默认规则
 	// (幂等方法 + 可重试错误 + 429/5xx 状态码)。
 	Retryable func(*http.Request, *http.Response, error) bool
+	// TotalTimeout 整体重试耗时上限,0 表示不限制。
+	// 覆盖该请求从首次尝试到最终返回(含退避等待)。
+	TotalTimeout time.Duration
 }
 
 // WithRetryPolicy 以完整策略开启重试,支持自定义可重试判定。
 func WithRetryPolicy(p RetryPolicy) Option {
 	return func(c *config) {
 		c.retry = &retryPolicy{
-			maxAttempts: p.MaxAttempts,
-			backoff:     p.Backoff,
-			retryable:   p.Retryable,
+			maxAttempts:  p.MaxAttempts,
+			backoff:      p.Backoff,
+			retryable:    p.Retryable,
+			totalTimeout: p.TotalTimeout,
 		}
 	}
 }
@@ -277,6 +286,28 @@ func WithHTTP2HealthCheck(readIdle, pingTimeout time.Duration) Option {
 	}
 }
 
+// WithMaxResponseHeaderBytes 设置响应头大小上限;0 表示使用默认值(10MiB)。
+func WithMaxResponseHeaderBytes(n int64) Option {
+	return func(c *config) {
+		if n == 0 {
+			n = defaultMaxResponseHeaderBytes
+		}
+		c.maxResponseHeaderBytes = n
+	}
+}
+
+// WithMaxConnsPerHost 设置每主机最大连接数;0 表示不限制。
+// HTTP/2 单连接多路复用,该选项仅 H1 / Auto 生效。
+func WithMaxConnsPerHost(n int) Option {
+	return func(c *config) { c.maxConnsPerHost = n }
+}
+
+// WithExpectContinueTimeout 设置 Expect: 100-continue 的等待超时;
+// 0 表示不等待。
+func WithExpectContinueTimeout(d time.Duration) Option {
+	return func(c *config) { c.expectContinueTimeout = d }
+}
+
 // validateConfig 校验配置参数,负数超时/连接池参数与非法协议均视为非法。
 func validateConfig(cfg config) error {
 	if cfg.timeout < 0 {
@@ -315,6 +346,15 @@ func validateConfig(cfg config) error {
 	if cfg.h2PingTimeout < 0 {
 		return errx.New(errx.KindInvalid, CodeInvalidConfig, "HTTP/2 Ping 超时不能为负数")
 	}
+	if cfg.maxResponseHeaderBytes < 0 {
+		return errx.New(errx.KindInvalid, CodeInvalidConfig, "MaxResponseHeaderBytes 不能为负数")
+	}
+	if cfg.maxConnsPerHost < 0 {
+		return errx.New(errx.KindInvalid, CodeInvalidConfig, "MaxConnsPerHost 不能为负数")
+	}
+	if cfg.expectContinueTimeout < 0 {
+		return errx.New(errx.KindInvalid, CodeInvalidConfig, "ExpectContinueTimeout 不能为负数")
+	}
 	if cfg.protocol < ProtocolAuto || cfg.protocol > ProtocolHTTP3 {
 		return errx.Newf(errx.KindInvalid, CodeInvalidConfig, "不支持的协议: %v", cfg.protocol)
 	}
@@ -324,6 +364,9 @@ func validateConfig(cfg config) error {
 		}
 		if cfg.retry.backoff == nil {
 			return errx.New(errx.KindInvalid, CodeInvalidConfig, "重试退避策略不能为空")
+		}
+		if cfg.retry.totalTimeout < 0 {
+			return errx.New(errx.KindInvalid, CodeInvalidConfig, "重试总时长不能为负数")
 		}
 	}
 	return nil
@@ -348,6 +391,7 @@ type requestOptions struct {
 	formFiles    map[string]FileField
 	multipartSet bool
 	timeout      time.Duration
+	requestID    string
 }
 
 // FileField 是 multipart 文件字段。
@@ -435,6 +479,12 @@ func WithXMLBody(v any) RequestOption {
 // 与客户端级超时同时存在时取更严格者。
 func WithRequestTimeout(d time.Duration) RequestOption {
 	return func(r *requestOptions) { r.timeout = d }
+}
+
+// WithRequestID 设置请求 ID,写入 X-Request-ID 请求头,
+// 并随日志与错误结构化字段输出,便于链路排障。
+func WithRequestID(id string) RequestOption {
+	return func(r *requestOptions) { r.requestID = id }
 }
 
 // bodyToReader 将 Post 的 body 参数转换为可读请求体:

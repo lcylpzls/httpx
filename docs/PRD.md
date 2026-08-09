@@ -1,6 +1,6 @@
 # httpx 产品需求(PRD)
 
-> 版本:v0.3.0(规划稿) · 状态:实现中(v0.1.0 / v0.2.0 已发布)
+> 版本:v0.4.0(规划稿) · 状态:实现中(v0.1.0–v0.3.0 已发布)
 
 ## 1. 背景与动机
 
@@ -98,6 +98,20 @@
   等待受 ctx 取消约束;
 - HTTP/2 健康检查:`WithHTTP2HealthCheck` 启用读空闲超时与 Ping 超时;
 - 流式响应:`ReadStream` 逐块回调读取,带大小上限。
+
+### 4.10 工业级打磨(v0.4.0)
+
+- 连接细节:`WithMaxResponseHeaderBytes`(默认 10MiB 防攻击)、
+  `WithMaxConnsPerHost`(每主机总连接上限)、
+  `WithExpectContinueTimeout`(100-continue 支持);
+- 重试总时长:`RetryPolicy.TotalTimeout` 限制整体重试耗时,
+  受 context 取消约束;
+- 请求 ID:`WithRequestID` 请求选项,日志与错误附带 request_id;
+- 错误字段:重试耗尽等错误附带 method / url 结构化字段;
+- 文档:security(安全模型)、operations(运行参数)、
+  quality(质量保障)、release(发布流程)、performance(基准);
+- 治理:CODEOWNERS、CONTRIBUTING、issue/PR 模板、SECURITY.md;
+- CI:apidiff 对比上一版本、go.mod tidy 漂移检查、重定向 fuzz。
 
 ## 5. 非功能需求
 

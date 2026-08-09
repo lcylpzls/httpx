@@ -85,6 +85,9 @@ func TestOptionsApply(t *testing.T) {
 		WithHooks(Hooks{OnError: func(error) {}}),
 		WithProxy(nil),
 		WithDisableCompression(true),
+		WithMaxResponseHeaderBytes(8192),
+		WithMaxConnsPerHost(4),
+		WithExpectContinueTimeout(time.Second),
 		nil,
 	}
 	for _, opt := range opts {
@@ -128,6 +131,10 @@ func TestOptionsApply(t *testing.T) {
 	if !cfg.disableCompression {
 		t.Error("压缩开关应用失败")
 	}
+	if cfg.maxResponseHeaderBytes != 8192 || cfg.maxConnsPerHost != 4 ||
+		cfg.expectContinueTimeout != time.Second {
+		t.Error("连接细节选项应用失败")
+	}
 	if policyCalls != 0 {
 		t.Error("策略回调不应立即调用")
 	}
@@ -156,6 +163,9 @@ func TestValidateConfig(t *testing.T) {
 		}, true, CodeInvalidConfig},
 		{"重试退避为空", func(c *config) {
 			c.retry = &retryPolicy{maxAttempts: 2, backoff: nil}
+		}, true, CodeInvalidConfig},
+		{"重试总时长负数", func(c *config) {
+			c.retry = &retryPolicy{maxAttempts: 2, backoff: FixedBackoff(time.Millisecond), totalTimeout: -1}
 		}, true, CodeInvalidConfig},
 	}
 	for _, tc := range cases {

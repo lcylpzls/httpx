@@ -78,6 +78,11 @@ func WithRetryPolicy(p RetryPolicy) Option
 func WithDNSCache(cache *DNSCache) Option
 func WithMaxConcurrency(n int) Option
 func WithHTTP2HealthCheck(readIdle, pingTimeout time.Duration) Option
+
+// 连接细节与打磨(v0.4.0)
+func WithMaxResponseHeaderBytes(n int64) Option
+func WithMaxConnsPerHost(n int) Option
+func WithExpectContinueTimeout(d time.Duration) Option
 ```
 
 默认值:MaxIdleConns=100、MaxIdleConnsPerHost=10、
@@ -137,6 +142,7 @@ func WithUserAgent(ua string) RequestOption
 func WithMultipartFormData(fields map[string]string, files map[string]FileField) RequestOption
 func WithXMLBody(v any) RequestOption
 func WithRequestTimeout(d time.Duration) RequestOption
+func WithRequestID(id string) RequestOption
 ```
 
 `Post(ctx, url, body any, opts...)` 的 body 规则:
@@ -164,9 +170,10 @@ func WithRetry(maxAttempts int, backoff Backoff) Option
 ```go
 // RetryPolicy 是完整重试策略,Retryable 为空时使用默认规则。
 type RetryPolicy struct {
-	MaxAttempts int
-	Backoff     Backoff
-	Retryable   func(*http.Request, *http.Response, error) bool
+	MaxAttempts  int
+	Backoff      Backoff
+	Retryable    func(*http.Request, *http.Response, error) bool
+	TotalTimeout time.Duration
 }
 
 func WithRetryPolicy(p RetryPolicy) Option

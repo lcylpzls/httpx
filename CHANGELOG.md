@@ -9,6 +9,23 @@
 - 完成 PRD、架构、API 草案、迭代计划与决策记录;
 - D1–D6 决策点已全部确认并冻结 v0.1.0 API(见 docs/api-design.md)。
 
+## [v0.4.0] - 2026-08-09
+
+### 新增
+
+- 连接细节:WithMaxResponseHeaderBytes(默认 10MiB)、
+  WithMaxConnsPerHost、WithExpectContinueTimeout;
+- 重试总时长:RetryPolicy.TotalTimeout;
+- 请求 ID:WithRequestID,日志与错误附带 request_id;
+- 错误结构化字段:method / url;
+- 治理与文档:SECURITY.md、CODEOWNERS、CONTRIBUTING、
+  issue/PR 模板、security / operations / quality / release / performance 文档;
+- CI:apidiff 对比上一版本、go.mod tidy 漂移检查、重定向 fuzz。
+
+### 质量
+
+- 核心与 http3 子包覆盖率 100%,race / vet / staticcheck / fuzz 全绿。
+
 ## [v0.3.0] - 2026-08-09
 
 ### 新增

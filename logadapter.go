@@ -54,6 +54,9 @@ func observe(cfg config, attempt int, req *http.Request, resp *http.Response, er
 		logx.Int("attempt", attempt),
 		logx.String("duration", duration.String()),
 	}
+	if id := req.Header.Get("X-Request-ID"); id != "" {
+		fields = append(fields, logx.String("request_id", id))
+	}
 	if err != nil {
 		fields = append(fields, logx.String("error", err.Error()))
 	}

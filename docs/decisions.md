@@ -125,3 +125,26 @@
 - **决策**:`WithMaxConcurrency` 客户端级信号量,0 表示不限;
   `WithHTTP2HealthCheck` 设置读空闲与 Ping 超时,默认关闭;
 - **影响**:资源上限由调用方显式声明,健康检查仅 H2 生效。
+
+## ADR-019:响应头大小默认受限,连接细节可配
+
+- **状态**:已接受(v0.4.0)
+- **决策**:响应头默认上限 10MiB(与 HTTP/2 默认一致),
+  `WithMaxResponseHeaderBytes` / `WithMaxConnsPerHost` /
+  `WithExpectContinueTimeout` 可配置;
+- **影响**:默认防响应头放大攻击,语义与 h2 对齐。
+
+## ADR-020:重试总时长与请求 ID 纳入错误观测
+
+- **状态**:已接受(v0.4.0)
+- **决策**:`RetryPolicy.TotalTimeout` 限制整体重试耗时;
+  `WithRequestID` 注入 X-Request-ID,日志与错误附带 request_id /
+  method / url 字段;
+- **影响**:重试有界,排障可关联请求链。
+
+## ADR-021:发布流程纳入 apidiff 与依赖漂移检查
+
+- **状态**:已接受(v0.4.0)
+- **决策**:CI 增加 apidiff(对比上一 tag,informational)、
+  go.mod tidy 漂移检查与重定向 fuzz;
+- **影响**:版本升级影响可控,仓库依赖状态可审计。

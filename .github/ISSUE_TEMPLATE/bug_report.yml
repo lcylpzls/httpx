@@ -1,0 +1,25 @@
+name: Bug 报告
+description: 提交一个可复现的问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: desc
+    attributes:
+      label: 问题描述
+      description: 发生了什么,期望是什么
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      description: 最小可复现代码与运行命令
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: httpx 版本 / Go 版本 / 操作系统
+    validations:
+      required: true
