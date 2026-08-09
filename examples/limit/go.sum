@@ -1,5 +1,5 @@
-github.com/lcylpzls/errx v1.2.0 h1:FmRfQk0jkeRn10GX3toGUEd/WMoXxkKXAgr8OBVhQDY=
-github.com/lcylpzls/errx v1.2.0/go.mod h1:+GcqVS4+6iuHvCELjwpsc1RKrdEtSNz00xq0lFrgdgI=
+github.com/lcylpzls/errx v1.3.1 h1:BEz53mq1Hd71VBI21vEhgkK54VOlX8T61ElnuUClh9o=
+github.com/lcylpzls/errx v1.3.1/go.mod h1:+GcqVS4+6iuHvCELjwpsc1RKrdEtSNz00xq0lFrgdgI=
 github.com/lcylpzls/logx v1.0.0 h1:jl5KHOGADJBIUif7UXaKiZiT3yycxKmmSHRxkatkaU0=
 github.com/lcylpzls/logx v1.0.0/go.mod h1:reR9kkXoO1rL8xqvvDvNAyyKsU4nqA/9WJlkeQDne4I=
 golang.org/x/net v0.57.0 h1:K5+3DljvIuDG9/Jv9rvyMywYNFCQ9RSUY6OOTTkT+tE=
