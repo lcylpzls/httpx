@@ -1,0 +1,217 @@
+package httpx
+
+import (
+	"bytes"
+	"context"
+	"crypto/tls"
+	"encoding/json"
+	"errors"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
+
+	"github.com/lcylpzls/errx"
+)
+
+// Client 是 HTTP 客户端入口,持有固定协议与连接池配置。
+type Client struct {
+	cfg config
+	rt  http.RoundTripper
+}
+
+// New 创建 HTTP 客户端。协议与连接池在创建时固定,运行期不可变。
+func New(opts ...Option) (*Client, error) {
+	cfg := defaultConfig()
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+	if err := validateConfig(cfg); err != nil {
+		return nil, err
+	}
+	rt, err := newRoundTripper(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{cfg: cfg, rt: rt}, nil
+}
+
+// Do 执行一次请求并返回响应。
+// 配置了整体超时时,超时通过 context 覆盖完整请求生命周期。
+func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if req == nil {
+		return nil, errx.New(errx.KindInvalid, CodeInvalidConfig, "请求不能为空")
+	}
+	if c.cfg.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.cfg.timeout)
+		defer cancel()
+		req = req.WithContext(ctx)
+	}
+	resp, err := c.do(ctx, req)
+	if err != nil {
+		return nil, wrapDoError(err)
+	}
+	return resp, nil
+}
+
+// CloseIdleConnections 释放连接池中的空闲连接,不中断正在使用的请求。
+// HTTP/3 子包等价于关闭全部空闲 QUIC 连接。
+func (c *Client) CloseIdleConnections() {
+	switch t := c.rt.(type) {
+	case interface{ CloseIdleConnections() }:
+		t.CloseIdleConnections()
+	case io.Closer:
+		_ = t.Close()
+	}
+}
+
+// Get 发起 GET 请求。
+func (c *Client) Get(ctx context.Context, url string, opts ...RequestOption) (*http.Response, error) {
+	req, err := c.buildRequest(ctx, http.MethodGet, url, nil, opts)
+	if err != nil {
+		return nil, err
+	}
+	return c.Do(ctx, req)
+}
+
+// Post 发起 POST 请求,body 规则见 bodyToReader。
+func (c *Client) Post(ctx context.Context, url string, body any, opts ...RequestOption) (*http.Response, error) {
+	req, err := c.buildRequest(ctx, http.MethodPost, url, body, opts)
+	if err != nil {
+		return nil, err
+	}
+	return c.Do(ctx, req)
+}
+
+// Request 以任意方法发起请求。
+func (c *Client) Request(ctx context.Context, method, url string, opts ...RequestOption) (*http.Response, error) {
+	req, err := c.buildRequest(ctx, method, url, nil, opts)
+	if err != nil {
+		return nil, err
+	}
+	return c.Do(ctx, req)
+}
+
+// buildRequest 将方法、URL、body 与请求选项合并为 *http.Request。
+func (c *Client) buildRequest(ctx context.Context, method, rawURL string, body any, opts []RequestOption) (*http.Request, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ro := requestOptions{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&ro)
+		}
+	}
+	r, contentType, err := bodyToReader(body)
+	if err != nil {
+		return nil, err
+	}
+	if ro.bodyValue != nil {
+		data, err := marshalJSONBody(ro.bodyValue)
+		if err != nil {
+			return nil, err
+		}
+		r = bytes.NewReader(data)
+		contentType = "application/json"
+	}
+	if ro.body != nil {
+		r = ro.body
+	}
+	if ro.contentType != "" {
+		contentType = ro.contentType
+	}
+	req, err := http.NewRequestWithContext(ctx, method, rawURL, r)
+	if err != nil {
+		return nil, errx.Wrap(err, errx.KindInvalid, CodeInvalidConfig, "构建请求失败")
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	for k, vs := range ro.header {
+		for _, v := range vs {
+			req.Header.Set(k, v)
+		}
+	}
+	if len(ro.query) > 0 {
+		q := req.URL.Query()
+		for k, vs := range ro.query {
+			for _, v := range vs {
+				q.Add(k, v)
+			}
+		}
+		req.URL.RawQuery = q.Encode()
+	}
+	if ro.authUser != "" || ro.authPass != "" {
+		req.SetBasicAuth(ro.authUser, ro.authPass)
+	}
+	if ro.bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+ro.bearer)
+	}
+	if ro.userAgent != "" {
+		req.Header.Set("User-Agent", ro.userAgent)
+	}
+	return req, nil
+}
+
+// marshalJSONBody 序列化 JSON 请求体。
+func marshalJSONBody(v any) ([]byte, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, errx.Wrap(err, errx.KindInvalid, CodeInvalidConfig, "请求体 JSON 序列化失败")
+	}
+	return data, nil
+}
+
+// wrapDoError 将 net/http 传输层错误分类包装为 HTX_* 错误码。
+func wrapDoError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := errx.As(err); ok {
+		return err
+	}
+	var netOpErr *net.OpError
+	if errors.As(err, &netOpErr) && netOpErr.Op == "dial" {
+		return errx.Wrap(err, errx.KindUnavailable, CodeDialFailed, "建立连接失败")
+	}
+	if isTLSError(err) {
+		return errx.Wrap(err, errx.KindUnavailable, CodeTLSFailed, "TLS 握手失败")
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		switch {
+		case strings.Contains(urlErr.Op, "dial"):
+			return errx.Wrap(err, errx.KindUnavailable, CodeDialFailed, "建立连接失败")
+		case strings.Contains(urlErr.Op, "tls"):
+			return errx.Wrap(err, errx.KindUnavailable, CodeTLSFailed, "TLS 握手失败")
+		}
+		return errx.Wrap(err, errx.KindUnavailable, CodeRequestFailed, "请求发送失败")
+	}
+	return errx.Wrap(err, errx.KindUnavailable, CodeRequestFailed, "请求发送失败")
+}
+
+// isTLSError 识别 crypto/tls 层的典型错误:
+// 记录头错误、证书验证错误与 "tls:" 前缀错误。
+func isTLSError(err error) bool {
+	var recordErr tls.RecordHeaderError
+	if errors.As(err, &recordErr) {
+		return true
+	}
+	var verifyErr *tls.CertificateVerificationError
+	if errors.As(err, &verifyErr) {
+		return true
+	}
+	if strings.Contains(err.Error(), "tls:") {
+		return true
+	}
+	var netOpErr *net.OpError
+	return errors.As(err, &netOpErr) && strings.Contains(netOpErr.Op, "tls")
+}

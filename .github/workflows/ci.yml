@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        go: ['1.26.x']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go }}
+          check-latest: true
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@2026.1
+          staticcheck ./...
+
+      - name: Test
+        run: go test -count=1 ./...
+
+      - name: Race detector (Linux)
+        if: runner.os == 'Linux'
+        run: go test -race -count=1 ./...
+
+      - name: Coverage (Linux)
+        if: runner.os == 'Linux'
+        run: go test -count=1 -coverprofile=coverage.out ./...
+
+      - name: Show coverage
+        if: runner.os == 'Linux'
+        run: go tool cover -func coverage.out
+
+      - name: Upload coverage artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ matrix.go }}
+          path: coverage.out
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.x'
+          check-latest: true
+
+      - name: Fuzz errors (5s)
+        run: go test -run '^$' -fuzz '^FuzzIsTimeout$' -fuzztime=5s .
+
+      - name: Fuzz retryable (5s)
+        run: go test -run '^$' -fuzz '^FuzzIsRetryable$' -fuzztime=5s .
+
+      - name: Fuzz backoff (5s)
+        run: go test -run '^$' -fuzz '^FuzzBackoff$' -fuzztime=5s .
+
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.x'
+          check-latest: true
+
+      - name: Build and vet examples
+        run: |
+          for dir in basic retry http3; do
+            if [ -d examples/$dir ]; then
+              (cd examples/$dir && go build ./... && go vet ./...)
+            fi
+          done
+
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.x'
+          check-latest: true
+
+      - name: Run benchmarks (baseline only, no gate)
+        run: go test -run '^$' -bench . -benchmem -benchtime=1s . | tee bench.log
+
+      - name: Upload benchmark log
+        uses: actions/upload-artifact@v7
+        with:
+          name: bench-log
+          path: bench.log
