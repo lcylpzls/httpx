@@ -32,6 +32,8 @@ const (
 	CodeRedirectExceeded errx.Code = "HTX_REDIRECT_EXCEEDED"
 	// CodeRedirectFailed 重定向地址解析或构造失败。
 	CodeRedirectFailed errx.Code = "HTX_REDIRECT_FAILED"
+	// CodeUnexpectedStatus 响应状态码不在期望列表。
+	CodeUnexpectedStatus errx.Code = "HTX_UNEXPECTED_STATUS"
 )
 
 func init() {
@@ -46,6 +48,7 @@ func init() {
 	errx.RegisterCode(CodeBodyUnreadable, "请求体不可重读")
 	errx.RegisterCode(CodeRedirectExceeded, "重定向次数超限")
 	errx.RegisterCode(CodeRedirectFailed, "重定向地址解析或构造失败")
+	errx.RegisterCode(CodeUnexpectedStatus, "响应状态码不在期望列表")
 }
 
 // IsTimeout 判断错误是否为超时:

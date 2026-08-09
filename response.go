@@ -115,3 +115,31 @@ func ReadStream(resp *http.Response, fn func([]byte) error, maxBytes int64) erro
 		}
 	}
 }
+
+// statusSummaryLimit 是 EnsureStatus 错误信息中响应体摘要的最大字节数。
+const statusSummaryLimit = 512
+
+// EnsureStatus 校验响应状态码在允许列表中。
+// 命中时返回 nil 且不关闭 Body(调用方可继续读取);
+// 未命中时读取并关闭 Body,返回 HTX_UNEXPECTED_STATUS,
+// 错误附带 status 与响应体摘要字段。
+func EnsureStatus(resp *http.Response, codes ...int) error {
+	if resp == nil {
+		return errx.New(errx.KindInvalid, CodeResponseFailed, "响应不能为空")
+	}
+	for _, code := range codes {
+		if resp.StatusCode == code {
+			return nil
+		}
+	}
+	summary := ""
+	if resp.Body != nil {
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, statusSummaryLimit))
+		_ = resp.Body.Close()
+		summary = string(data)
+	}
+	return errx.Newf(errx.KindInvalid, CodeUnexpectedStatus,
+		"响应状态码 %d 不在允许列表", resp.StatusCode).
+		WithField("status", resp.StatusCode).
+		WithField("body", summary)
+}

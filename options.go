@@ -188,6 +188,9 @@ type RetryPolicy struct {
 	// TotalTimeout 整体重试耗时上限,0 表示不限制。
 	// 覆盖该请求从首次尝试到最终返回(含退避等待)。
 	TotalTimeout time.Duration
+	// MaxBackoff 单次退避等待的上限(含 Retry-After),0 表示不限制。
+	// 防止服务端返回超大 Retry-After 时长时间阻塞。
+	MaxBackoff time.Duration
 }
 
 // WithRetryPolicy 以完整策略开启重试,支持自定义可重试判定。
@@ -198,6 +201,7 @@ func WithRetryPolicy(p RetryPolicy) Option {
 			backoff:      p.Backoff,
 			retryable:    p.Retryable,
 			totalTimeout: p.TotalTimeout,
+			maxBackoff:   p.MaxBackoff,
 		}
 	}
 }
@@ -368,6 +372,9 @@ func validateConfig(cfg config) error {
 		if cfg.retry.totalTimeout < 0 {
 			return errx.New(errx.KindInvalid, CodeInvalidConfig, "重试总时长不能为负数")
 		}
+		if cfg.retry.maxBackoff < 0 {
+			return errx.New(errx.KindInvalid, CodeInvalidConfig, "重试退避上限不能为负数")
+		}
 	}
 	return nil
 }
@@ -400,6 +407,9 @@ type FileField struct {
 	Filename string
 	// Content 文件内容。
 	Content []byte
+	// Reader 流式文件内容;非 nil 时优先于 Content,
+	// 用于大文件避免整块载入内存。
+	Reader io.Reader
 }
 
 // WithHeader 设置请求头(同名多次调用时后者覆盖前者)。

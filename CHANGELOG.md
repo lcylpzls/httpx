@@ -26,6 +26,20 @@
 
 - 核心与 http3 子包覆盖率 100%,race / vet / staticcheck / fuzz 全绿。
 
+## [v0.5.0] - 2026-08-09
+
+### 新增
+
+- EnsureStatus 响应状态断言助手(HTX_UNEXPECTED_STATUS,带 status/body 字段);
+- FileField.Reader 流式文件上传,大文件无需整块载入内存;
+- RetryPolicy.MaxBackoff 单次退避上限(含 Retry-After 截断);
+- Version 常量与库版本对齐;
+- CI:govulncheck 漏洞扫描。
+
+### 质量
+
+- 核心与 http3 子包覆盖率 100%,race / vet / staticcheck / fuzz / vuln 全绿。
+
 ## [v0.3.0] - 2026-08-09
 
 ### 新增

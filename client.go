@@ -163,7 +163,11 @@ func (c *Client) buildRequest(ctx context.Context, method, rawURL string, body a
 		}
 		for name, f := range ro.formFiles {
 			fw, _ := w.CreateFormFile(name, f.Filename)
-			_, _ = fw.Write(f.Content)
+			if f.Reader != nil {
+				_, _ = io.Copy(fw, f.Reader)
+			} else {
+				_, _ = fw.Write(f.Content)
+			}
 		}
 		_ = w.Close()
 		r = &buf

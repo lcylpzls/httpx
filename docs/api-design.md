@@ -83,6 +83,9 @@ func WithHTTP2HealthCheck(readIdle, pingTimeout time.Duration) Option
 func WithMaxResponseHeaderBytes(n int64) Option
 func WithMaxConnsPerHost(n int) Option
 func WithExpectContinueTimeout(d time.Duration) Option
+
+// 协议与健壮性(v0.5.0)
+const Version = "v0.5.0"
 ```
 
 默认值:MaxIdleConns=100、MaxIdleConnsPerHost=10、
@@ -174,6 +177,7 @@ type RetryPolicy struct {
 	Backoff      Backoff
 	Retryable    func(*http.Request, *http.Response, error) bool
 	TotalTimeout time.Duration
+	MaxBackoff   time.Duration
 }
 
 func WithRetryPolicy(p RetryPolicy) Option
@@ -200,9 +204,13 @@ func ReadString(resp *http.Response, maxBytes int64) (string, error)
 func JSON(resp *http.Response, out any) error
 func ReadFile(resp *http.Response, path string, maxBytes int64) error
 func ReadStream(resp *http.Response, fn func([]byte) error, maxBytes int64) error
+func EnsureStatus(resp *http.Response, codes ...int) error
 ```
 
 `JSON` 内置 16MiB 大小上限,防止内存被打爆。
+
+`EnsureStatus` 命中允许列表时返回 nil 且不关闭 Body;
+未命中时关闭 Body,返回 HTX_UNEXPECTED_STATUS(status 与 body 摘要字段)。
 
 ## 7.5 运行统计
 

@@ -68,6 +68,7 @@ type retryPolicy struct {
 	backoff      Backoff
 	retryable    func(*http.Request, *http.Response, error) bool
 	totalTimeout time.Duration
+	maxBackoff   time.Duration
 }
 
 // retryableStatuses 是可重试的响应状态码:
@@ -159,6 +160,9 @@ func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, err
 		wait := policy.backoff(attempt)
 		if resp != nil {
 			wait = retryAfter(resp.Header, wait)
+		}
+		if policy.maxBackoff > 0 && wait > policy.maxBackoff {
+			wait = policy.maxBackoff
 		}
 		select {
 		case <-ctx.Done():

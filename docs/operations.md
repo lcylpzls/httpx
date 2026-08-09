@@ -16,6 +16,7 @@
 | 重定向 | WithMaxRedirects / NoRedirect / Policy | 10 次跟随 |
 | Cookie | WithCookieJar | 不维护 |
 | 重试 | WithRetry / WithRetryPolicy | 关闭 |
+| 重试上限 | RetryPolicy.TotalTimeout / MaxBackoff | 不限 |
 | 并发 | WithMaxConcurrency | 不限 |
 | DNS | WithDNSCache | 关闭 |
 | H2 健康检查 | WithHTTP2HealthCheck | 关闭 |
@@ -39,6 +40,14 @@
 - 请求失败输出 Warn 级 `HTTP 请求失败`;
 - 超过慢阈值输出 Warn 级 `慢请求`;
 - 携带 `X-Request-ID`(WithRequestID)时附加 `request_id` 字段。
+
+## 注意事项
+
+- `Client` 并发安全,可在多个 goroutine 间共享;
+- 整体超时(客户端级或请求级)到期后,`Do` 返回的错误已标记超时,
+  此时响应体读取可能因连接关闭失败,流式大响应请留足超时余量;
+- `RetryPolicy.MaxBackoff` 会截断服务端返回的超大 `Retry-After`,
+  防止长时间阻塞。
 
 ## 常见场景
 

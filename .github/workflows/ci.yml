@@ -169,3 +169,20 @@ jobs:
           apidiff -w /tmp/httpx-new.export github.com/lcylpzls/httpx
           apidiff /tmp/httpx-old.export /tmp/httpx-new.export
           git worktree remove /tmp/httpx-prev --force
+
+  vuln:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.x'
+          check-latest: true
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...

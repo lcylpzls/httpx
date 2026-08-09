@@ -3,7 +3,7 @@
 基于 `net/http` 的高性能 HTTP 客户端库:连接复用、分层超时、可选重试,
 可适配 HTTP/1 / HTTP/2 / HTTP/3,与 errx / logx 打通。
 
-> 当前状态:**v0.3.0 实现完成,待 CI 验证与发布**。
+> 当前状态:**v0.5.0 实现完成,待 CI 验证与发布**。
 
 ## 定位
 
@@ -70,10 +70,14 @@ client, err := httpx.New(httpx.WithProtocol(httpx.ProtocolHTTP3))
 - 并发限流:WithMaxConcurrency 控制同时在途请求;
 - HTTP/2 健康检查:WithHTTP2HealthCheck 读空闲 + Ping;
 - 流式响应:ReadStream 逐块回调,带大小上限。
+- 状态断言:EnsureStatus 校验期望状态码,错误携带 status/body 字段;
+- 流式上传:FileField.Reader 大文件不整块载入内存;
+- 重试上限:RetryPolicy.MaxBackoff 截断超大 Retry-After。
 
 ## 质量门槛
 
 - 语句覆盖率 100%,race、vet、staticcheck、fuzz 全绿;
+- govulncheck 漏洞扫描零告警;
 - 三平台 CI(ubuntu / windows / macos);
 - 性能基准与裸 `net/http` 同量级(见 docs/iteration-plan.md)。
 
