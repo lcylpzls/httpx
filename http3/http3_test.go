@@ -81,6 +81,25 @@ func TestHTTP3DialTimeoutZero(t *testing.T) {
 	client.CloseIdleConnections()
 }
 
+func TestHTTP3DisableCompression(t *testing.T) {
+	addr, pool := newH3Server(t)
+
+	client, err := httpx.New(
+		httpx.WithProtocol(httpx.ProtocolHTTP3),
+		httpx.WithDisableCompression(true),
+		httpx.WithTLSClientConfig(&tls.Config{RootCAs: pool}),
+	)
+	if err != nil {
+		t.Fatalf("New 失败:%v", err)
+	}
+	resp, err := client.Get(context.Background(), "https://"+addr)
+	if err != nil {
+		t.Fatalf("HTTP/3 请求失败:%v", err)
+	}
+	_ = resp.Body.Close()
+	client.CloseIdleConnections()
+}
+
 // newH3Server 启动本地 HTTP/3 服务器,返回 UDP 地址与信任证书池。
 func newH3Server(t *testing.T) (string, *x509.CertPool) {
 	t.Helper()

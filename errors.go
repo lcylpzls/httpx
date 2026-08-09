@@ -28,6 +28,10 @@ const (
 	CodeBodyTooLarge errx.Code = "HTX_BODY_TOO_LARGE"
 	// CodeBodyUnreadable 请求体不可重读,无法重试。
 	CodeBodyUnreadable errx.Code = "HTX_BODY_UNREADABLE"
+	// CodeRedirectExceeded 重定向次数超限。
+	CodeRedirectExceeded errx.Code = "HTX_REDIRECT_EXCEEDED"
+	// CodeRedirectFailed 重定向地址解析或构造失败。
+	CodeRedirectFailed errx.Code = "HTX_REDIRECT_FAILED"
 )
 
 func init() {
@@ -40,6 +44,8 @@ func init() {
 	errx.RegisterCode(CodeRetryExhausted, "重试耗尽")
 	errx.RegisterCode(CodeBodyTooLarge, "响应体超过大小上限")
 	errx.RegisterCode(CodeBodyUnreadable, "请求体不可重读")
+	errx.RegisterCode(CodeRedirectExceeded, "重定向次数超限")
+	errx.RegisterCode(CodeRedirectFailed, "重定向地址解析或构造失败")
 }
 
 // IsTimeout 判断错误是否为超时:

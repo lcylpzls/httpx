@@ -103,16 +103,14 @@ func idempotentMethod(method string) bool {
 func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	policy := c.cfg.retry
 	if policy == nil {
-		start := time.Now()
-		resp, err := c.rt.RoundTrip(req)
-		observe(c.cfg, 1, req, resp, err, start)
-		return resp, err
+		return c.attempt(req, 1)
 	}
 	current := req
 	for attempt := 1; ; attempt++ {
-		start := time.Now()
-		resp, err := c.rt.RoundTrip(current)
-		observe(c.cfg, attempt, current, resp, err, start)
+		if attempt > 1 {
+			c.stats.retries.Add(1)
+		}
+		resp, err := c.attempt(current, attempt)
 
 		// 成功或不可重试状态码:直接返回。
 		if err == nil && !retryableStatus(resp.StatusCode) {
@@ -158,6 +156,40 @@ func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, err
 		case <-time.After(wait):
 		}
 	}
+}
+
+// attempt 执行单次请求尝试:统计、Cookie 注入、钩子与观测。
+func (c *Client) attempt(req *http.Request, attempt int) (*http.Response, error) {
+	c.stats.totalRequests.Add(1)
+	c.stats.activeRequests.Add(1)
+	defer c.stats.activeRequests.Add(^uint64(0))
+	c.injectCookies(req)
+	if h := c.cfg.hooks.OnRequest; h != nil {
+		if err := h(req); err != nil {
+			c.stats.totalErrors.Add(1)
+			return nil, errx.Wrap(err, errx.KindCancelled, CodeRequestFailed, "OnRequest 钩子终止请求")
+		}
+	}
+	start := time.Now()
+	resp, err := c.rt.RoundTrip(req)
+	if err != nil {
+		c.stats.totalErrors.Add(1)
+		if h := c.cfg.hooks.OnError; h != nil {
+			h(err)
+		}
+		observe(c.cfg, attempt, req, nil, err, start)
+		return nil, err
+	}
+	c.storeCookies(resp)
+	if h := c.cfg.hooks.OnResponse; h != nil {
+		if herr := h(resp); herr != nil {
+			_ = resp.Body.Close()
+			c.stats.totalErrors.Add(1)
+			return nil, errx.Wrap(herr, errx.KindCancelled, CodeRequestFailed, "OnResponse 钩子终止请求")
+		}
+	}
+	observe(c.cfg, attempt, req, resp, nil, start)
+	return resp, nil
 }
 
 // cloneRequestForRetry 为下一次重试克隆请求并重建可重读的请求体。

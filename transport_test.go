@@ -9,9 +9,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/lcylpzls/errx"
+	"golang.org/x/net/http2"
 )
 
 // fakeRoundTripper 供 HTTP/3 注册测试使用。
@@ -180,6 +182,99 @@ func TestHTTP2DialFailed(t *testing.T) {
 	}
 	if code, _ := errx.CodeOf(err); code != CodeDialFailed {
 		t.Errorf("错误码 = %s,want %s;err=%v", code, CodeDialFailed, err)
+	}
+}
+
+func TestProxyApplied(t *testing.T) {
+	var proxied bool
+	proxySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxied = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer proxySrv.Close()
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("请求不应直达目标")
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer target.Close()
+
+	client, err := New(WithProxy(func(*http.Request) (*url.URL, error) {
+		return url.Parse(proxySrv.URL)
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Get(context.Background(), target.URL)
+	if err != nil {
+		t.Fatalf("代理请求失败:%v", err)
+	}
+	_ = resp.Body.Close()
+	if !proxied {
+		t.Error("请求应经过代理")
+	}
+}
+
+func TestProxyNilDisablesProxy(t *testing.T) {
+	client, err := New(WithProxy(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr := client.rt.(*http.Transport)
+	if tr.Proxy != nil {
+		t.Error("WithProxy(nil) 应显式关闭代理")
+	}
+}
+
+func TestDefaultProxyFromEnvironment(t *testing.T) {
+	client, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr := client.rt.(*http.Transport)
+	if tr.Proxy == nil {
+		t.Error("默认应使用环境代理")
+	}
+}
+
+func TestDisableCompressionTransport(t *testing.T) {
+	// Auto
+	client, err := New(WithDisableCompression(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !client.rt.(*http.Transport).DisableCompression {
+		t.Error("Auto 模式压缩开关未生效")
+	}
+	// HTTP/2
+	client, err = New(WithProtocol(ProtocolHTTP2), WithDisableCompression(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !client.rt.(*http2.Transport).DisableCompression {
+		t.Error("HTTP/2 压缩开关未生效")
+	}
+}
+
+func TestDisableCompressionBehavior(t *testing.T) {
+	var acceptEncoding string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		acceptEncoding = r.Header.Get("Accept-Encoding")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	client, err := New(WithDisableCompression(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Get(context.Background(), srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if acceptEncoding != "" {
+		t.Errorf("禁用压缩后不应请求 gzip:Accept-Encoding=%q", acceptEncoding)
 	}
 }
 

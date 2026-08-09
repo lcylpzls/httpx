@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,8 +19,9 @@ import (
 
 // Client 是 HTTP 客户端入口,持有固定协议与连接池配置。
 type Client struct {
-	cfg config
-	rt  http.RoundTripper
+	cfg   config
+	rt    http.RoundTripper
+	stats clientStats
 }
 
 // New 创建 HTTP 客户端。协议与连接池在创建时固定,运行期不可变。
@@ -54,7 +57,7 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		defer cancel()
 		req = req.WithContext(ctx)
 	}
-	resp, err := c.do(ctx, req)
+	resp, err := c.followRedirects(ctx, req)
 	if err != nil {
 		return nil, wrapDoError(err)
 	}
@@ -121,6 +124,28 @@ func (c *Client) buildRequest(ctx context.Context, method, rawURL string, body a
 		}
 		r = bytes.NewReader(data)
 		contentType = "application/json"
+	}
+	if ro.xmlBody != nil {
+		data, err := xml.Marshal(ro.xmlBody)
+		if err != nil {
+			return nil, errx.Wrap(err, errx.KindInvalid, CodeInvalidConfig, "请求体 XML 序列化失败")
+		}
+		r = bytes.NewReader(data)
+		contentType = "application/xml"
+	}
+	if ro.multipartSet {
+		var buf bytes.Buffer
+		w := multipart.NewWriter(&buf)
+		for k, v := range ro.formFields {
+			_ = w.WriteField(k, v)
+		}
+		for name, f := range ro.formFiles {
+			fw, _ := w.CreateFormFile(name, f.Filename)
+			_, _ = fw.Write(f.Content)
+		}
+		_ = w.Close()
+		r = &buf
+		contentType = w.FormDataContentType()
 	}
 	if ro.body != nil {
 		r = ro.body

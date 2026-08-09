@@ -5,6 +5,8 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -158,6 +160,44 @@ func TestJSONTooLarge(t *testing.T) {
 	err := JSON(resp, &out)
 	if err == nil {
 		t.Fatal("超过内置上限应返回错误")
+	}
+	if code, _ := errx.CodeOf(err); code != CodeBodyTooLarge {
+		t.Errorf("错误码 = %s,want %s", code, CodeBodyTooLarge)
+	}
+}
+
+func TestReadFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "out.txt")
+	resp := &http.Response{Body: io.NopCloser(strings.NewReader("file content"))}
+	if err := ReadFile(resp, path, 1024); err != nil {
+		t.Fatalf("ReadFile 失败:%v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "file content" {
+		t.Errorf("文件内容 = %q", data)
+	}
+}
+
+func TestReadFileWriteError(t *testing.T) {
+	resp := &http.Response{Body: io.NopCloser(strings.NewReader("x"))}
+	err := ReadFile(resp, filepath.Join(t.TempDir(), "no", "dir", "x.txt"), 1024)
+	if err == nil {
+		t.Fatal("写入失败应返回错误")
+	}
+	if code, _ := errx.CodeOf(err); code != CodeResponseFailed {
+		t.Errorf("错误码 = %s,want %s", code, CodeResponseFailed)
+	}
+}
+
+func TestReadFileTooLarge(t *testing.T) {
+	resp := &http.Response{Body: io.NopCloser(strings.NewReader("toolong"))}
+	err := ReadFile(resp, filepath.Join(t.TempDir(), "x.txt"), 3)
+	if err == nil {
+		t.Fatal("超限应返回错误")
 	}
 	if code, _ := errx.CodeOf(err); code != CodeBodyTooLarge {
 		t.Errorf("错误码 = %s,want %s", code, CodeBodyTooLarge)

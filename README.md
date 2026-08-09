@@ -3,7 +3,7 @@
 基于 `net/http` 的高性能 HTTP 客户端库:连接复用、分层超时、可选重试,
 可适配 HTTP/1 / HTTP/2 / HTTP/3,与 errx / logx 打通。
 
-> 当前状态:**v0.1.0 实现完成,待 CI 验证与发布**。
+> 当前状态:**v0.2.0 实现完成,待 CI 验证与发布**。
 
 ## 定位
 
@@ -58,7 +58,12 @@ client, err := httpx.New(httpx.WithProtocol(httpx.ProtocolHTTP3))
 - 重试:默认关闭,显式开启后仅幂等方法,指数退避 + 抖动 + Retry-After;
 - 观测:logx 外部注入 + Metrics 接口,默认 no-op 零开销;
 - 错误:统一 errx,HTX_* 错误码,IsTimeout / IsRetryable 判定助手;
-- 响应助手:ReadBody / ReadString / JSON,统一关闭 Body 并设大小上限。
+- 响应助手:ReadBody / ReadString / JSON / ReadFile,统一关闭 Body 并设大小上限;
+- 重定向:默认跟随上限 10,方法转换与跨域敏感头剥离,可关闭/自定义策略;
+- 会话:标准库 CookieJar 自动注入与保存;
+- 钩子:OnRequest / OnResponse / OnError 轻量回调;
+- 请求体:JSON / XML / multipart / 表单 / 字节;
+- 统计:Client.Stats 请求、活跃、错误、重试计数。
 
 ## 质量门槛
 
@@ -72,6 +77,7 @@ client, err := httpx.New(httpx.WithProtocol(httpx.ProtocolHTTP3))
 - [docs/client-research.md](docs/client-research.md) — 热门 HTTP 客户端调研手册
 - [examples/basic](examples/basic) — 基础请求与 JSON 解析
 - [examples/retry](examples/retry) — 幂等重试与退避
+- [examples/session](examples/session) — Cookie 会话与重定向
 - [examples/http3](examples/http3) — HTTP/3 接入
 
 ## License

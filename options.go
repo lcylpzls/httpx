@@ -23,6 +23,7 @@ const (
 	defaultTLSHandshakeTimeout   = 10 * time.Second
 	defaultResponseHeaderTimeout = 30 * time.Second
 	defaultSlowThreshold         = 100 * time.Millisecond
+	defaultMaxRedirects          = 10
 )
 
 // Protocol 表示 HTTP 协议选择,在 New 时固定,运行期不可变。
@@ -71,6 +72,13 @@ type config struct {
 	logRequest            bool
 	slowThreshold         time.Duration
 	metrics               Metrics
+	maxRedirects          int
+	redirectPolicy        func(*http.Request, []*http.Request) error
+	cookieJar             http.CookieJar
+	hooks                 Hooks
+	proxy                 func(*http.Request) (*url.URL, error)
+	proxySet              bool
+	disableCompression    bool
 }
 
 // defaultConfig 返回生产实践默认配置。
@@ -84,7 +92,18 @@ func defaultConfig() config {
 		maxIdleConnsPerHost:   defaultMaxIdleConnsPerHost,
 		idleConnTimeout:       defaultIdleConnTimeout,
 		slowThreshold:         defaultSlowThreshold,
+		maxRedirects:          defaultMaxRedirects,
 	}
+}
+
+// Hooks 是轻量请求钩子,全部可选,默认 no-op。
+type Hooks struct {
+	// OnRequest 在每次请求尝试前调用;返回错误将终止本次请求。
+	OnRequest func(*http.Request) error
+	// OnResponse 在每次响应后调用;返回错误将终止本次请求。
+	OnResponse func(*http.Response) error
+	// OnError 在每次请求错误后调用,仅用于观察。
+	OnError func(error)
 }
 
 // Option 修改 Client 配置,在 New 时按顺序应用。
@@ -168,6 +187,49 @@ func WithMetrics(m Metrics) Option {
 	return func(c *config) { c.metrics = m }
 }
 
+// WithMaxRedirects 设置最大重定向次数;0 表示不跟随重定向,
+// 直接返回 3xx 响应;负数视为非法配置。
+func WithMaxRedirects(n int) Option {
+	return func(c *config) { c.maxRedirects = n }
+}
+
+// WithNoRedirect 关闭重定向跟随,直接返回 3xx 响应。
+func WithNoRedirect() Option {
+	return func(c *config) { c.maxRedirects = 0 }
+}
+
+// WithRedirectPolicy 设置自定义重定向策略:
+// 在每次跳转前调用,参数为下一个请求与已访问请求列表;
+// 返回错误将终止跟随。设置后覆盖次数上限语义。
+func WithRedirectPolicy(policy func(*http.Request, []*http.Request) error) Option {
+	return func(c *config) { c.redirectPolicy = policy }
+}
+
+// WithCookieJar 接入标准库 Cookie 会话:请求前自动注入、响应后自动保存。
+// 未配置时行为与 http.DefaultClient 一致(不维护 Cookie)。
+func WithCookieJar(jar http.CookieJar) Option {
+	return func(c *config) { c.cookieJar = jar }
+}
+
+// WithHooks 注入轻量请求钩子(OnRequest / OnResponse / OnError)。
+func WithHooks(h Hooks) Option {
+	return func(c *config) { c.hooks = h }
+}
+
+// WithProxy 设置自定义代理;传入 nil 显式关闭代理
+// (默认行为是读取环境变量 HTTP_PROXY / HTTPS_PROXY)。
+func WithProxy(proxy func(*http.Request) (*url.URL, error)) Option {
+	return func(c *config) {
+		c.proxy = proxy
+		c.proxySet = true
+	}
+}
+
+// WithDisableCompression 关闭自动解压(gzip / br 等由 Transport 处理)。
+func WithDisableCompression(disabled bool) Option {
+	return func(c *config) { c.disableCompression = disabled }
+}
+
 // validateConfig 校验配置参数,负数超时/连接池参数与非法协议均视为非法。
 func validateConfig(cfg config) error {
 	if cfg.timeout < 0 {
@@ -194,6 +256,9 @@ func validateConfig(cfg config) error {
 	if cfg.slowThreshold < 0 {
 		return errx.New(errx.KindInvalid, CodeInvalidConfig, "SlowThreshold 不能为负数")
 	}
+	if cfg.maxRedirects < 0 {
+		return errx.New(errx.KindInvalid, CodeInvalidConfig, "MaxRedirects 不能为负数")
+	}
 	if cfg.protocol < ProtocolAuto || cfg.protocol > ProtocolHTTP3 {
 		return errx.Newf(errx.KindInvalid, CodeInvalidConfig, "不支持的协议: %v", cfg.protocol)
 	}
@@ -213,15 +278,27 @@ type RequestOption func(*requestOptions)
 
 // requestOptions 是单个请求的可变配置。
 type requestOptions struct {
-	header      http.Header
-	query       url.Values
-	bodyValue   any
-	body        io.Reader
-	contentType string
-	authUser    string
-	authPass    string
-	bearer      string
-	userAgent   string
+	header       http.Header
+	query        url.Values
+	bodyValue    any
+	body         io.Reader
+	contentType  string
+	authUser     string
+	authPass     string
+	bearer       string
+	userAgent    string
+	xmlBody      any
+	formFields   map[string]string
+	formFiles    map[string]FileField
+	multipartSet bool
+}
+
+// FileField 是 multipart 文件字段。
+type FileField struct {
+	// Filename 文件名(展示用)。
+	Filename string
+	// Content 文件内容。
+	Content []byte
 }
 
 // WithHeader 设置请求头(同名多次调用时后者覆盖前者)。
@@ -280,6 +357,21 @@ func WithBearer(token string) RequestOption {
 // WithUserAgent 设置 User-Agent 请求头。
 func WithUserAgent(ua string) RequestOption {
 	return func(r *requestOptions) { r.userAgent = ua }
+}
+
+// WithMultipartFormData 以 multipart/form-data 发送字段与文件,
+// 自动生成带边界的 Content-Type。
+func WithMultipartFormData(fields map[string]string, files map[string]FileField) RequestOption {
+	return func(r *requestOptions) {
+		r.formFields = fields
+		r.formFiles = files
+		r.multipartSet = true
+	}
+}
+
+// WithXMLBody 以 XML 请求体发送,自动设置 Content-Type: application/xml。
+func WithXMLBody(v any) RequestOption {
+	return func(r *requestOptions) { r.xmlBody = v }
 }
 
 // bodyToReader 将 Post 的 body 参数转换为可读请求体:

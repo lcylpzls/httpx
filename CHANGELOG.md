@@ -9,6 +9,29 @@
 - 完成 PRD、架构、API 草案、迭代计划与决策记录;
 - D1–D6 决策点已全部确认并冻结 v0.1.0 API(见 docs/api-design.md)。
 
+## [v0.2.0] - 2026-08-09
+
+### 新增
+
+- 重定向:默认跟随上限 10,301/302/303/307/308 方法转换,
+  跨域剥离 Authorization / Cookie 等敏感头;
+  WithMaxRedirects / WithNoRedirect / WithRedirectPolicy;
+- Cookie 会话:WithCookieJar 接入标准库 CookieJar,请求自动注入与保存;
+- 轻量钩子:WithHooks(OnRequest / OnResponse / OnError);
+- 请求体:WithMultipartFormData、WithXMLBody;
+- 传输控制:WithProxy(默认环境代理,可显式关闭)、WithDisableCompression;
+- Client.Stats 运行统计;ReadFile 响应落盘助手;
+- 新错误码:HTX_REDIRECT_EXCEEDED / HTX_REDIRECT_FAILED。
+
+### 变更
+
+- 默认启用环境代理(HTTP_PROXY / HTTPS_PROXY),与 net/http 默认一致。
+
+### 质量
+
+- 核心与 http3 子包覆盖率 100%,race / vet / staticcheck / fuzz 全绿;
+- 新增 session 示例,三平台 CI 全量验证。
+
 ### 0.1.0(计划中)
 
 - 客户端核心:New / Do / Get / Post / Request,连接池与四层超时;

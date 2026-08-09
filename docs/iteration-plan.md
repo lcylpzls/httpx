@@ -33,6 +33,17 @@
 
 - examples(基础调用、重试、H3);README/docs 收尾;API 基线;发布。
 
+### P6 会话、重定向与钩子(v0.2.0)
+
+- 重定向策略与跨域敏感头剥离;CookieJar 自动维护;
+- OnRequest / OnResponse / OnError 轻量钩子;
+- multipart / XML 请求体;代理与压缩开关;
+- Client.Stats 与 ReadFile;
+- 更新示例(会话与重定向);发布 v0.2.0。
+
+**验收**:重定向方法转换 / 跨域剥离 / 跳转超限、Cookie 会话、钩子、
+multipart、Stats、ReadFile 全路径测试,100% 覆盖率。
+
 ## 2. 质量门槛(每阶段强制)
 
 - 语句覆盖率 100%;`go vet` / `staticcheck` 零告警;`go test -race` 全绿;

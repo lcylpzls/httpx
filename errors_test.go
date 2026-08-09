@@ -30,6 +30,8 @@ func TestErrorCodesRegistered(t *testing.T) {
 		CodeRetryExhausted,
 		CodeBodyTooLarge,
 		CodeBodyUnreadable,
+		CodeRedirectExceeded,
+		CodeRedirectFailed,
 	}
 	registered := map[errx.Code]bool{}
 	for _, c := range errx.Codes() {

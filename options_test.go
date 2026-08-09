@@ -3,6 +3,8 @@ package httpx
 import (
 	"bytes"
 	"crypto/tls"
+	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"strings"
 	"testing"
@@ -53,6 +55,11 @@ func TestOptionsApply(t *testing.T) {
 	logger := &fakeLogger{}
 	metrics := &fakeMetrics{}
 	tlsCfg := &tls.Config{ServerName: "example.com"}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var policyCalls int
 	cfg := defaultConfig()
 	opts := []Option{
 		WithTimeout(1 * time.Second),
@@ -69,6 +76,15 @@ func TestOptionsApply(t *testing.T) {
 		WithLogRequest(true),
 		WithSlowThreshold(50 * time.Millisecond),
 		WithMetrics(metrics),
+		WithMaxRedirects(5),
+		WithRedirectPolicy(func(*http.Request, []*http.Request) error {
+			policyCalls++
+			return nil
+		}),
+		WithCookieJar(jar),
+		WithHooks(Hooks{OnError: func(error) {}}),
+		WithProxy(nil),
+		WithDisableCompression(true),
 		nil,
 	}
 	for _, opt := range opts {
@@ -97,6 +113,24 @@ func TestOptionsApply(t *testing.T) {
 	if cfg.logger != logger || !cfg.logRequest || cfg.slowThreshold != 50*time.Millisecond || cfg.metrics != metrics {
 		t.Error("观测选项应用失败")
 	}
+	if cfg.maxRedirects != 5 || cfg.redirectPolicy == nil {
+		t.Error("重定向选项应用失败")
+	}
+	if cfg.cookieJar != jar {
+		t.Error("CookieJar 选项应用失败")
+	}
+	if cfg.hooks.OnError == nil {
+		t.Error("钩子选项应用失败")
+	}
+	if !cfg.proxySet || cfg.proxy != nil {
+		t.Error("代理选项应用失败")
+	}
+	if !cfg.disableCompression {
+		t.Error("压缩开关应用失败")
+	}
+	if policyCalls != 0 {
+		t.Error("策略回调不应立即调用")
+	}
 }
 
 func TestValidateConfig(t *testing.T) {
@@ -115,6 +149,7 @@ func TestValidateConfig(t *testing.T) {
 		{"每主机负数", func(c *config) { c.maxIdleConnsPerHost = -1 }, true, CodeInvalidConfig},
 		{"空闲回收负数", func(c *config) { c.idleConnTimeout = -1 }, true, CodeInvalidConfig},
 		{"慢阈值负数", func(c *config) { c.slowThreshold = -1 }, true, CodeInvalidConfig},
+		{"重定向上限负数", func(c *config) { c.maxRedirects = -1 }, true, CodeInvalidConfig},
 		{"非法协议", func(c *config) { c.protocol = Protocol(99) }, true, CodeInvalidConfig},
 		{"重试次数为 0", func(c *config) {
 			c.retry = &retryPolicy{maxAttempts: 0, backoff: FixedBackoff(time.Millisecond)}
@@ -219,6 +254,8 @@ func TestRequestOptionsApply(t *testing.T) {
 		WithBasicAuth("user", "pass"),
 		WithBearer("tok"),
 		WithUserAgent("httpx-test"),
+		WithMultipartFormData(map[string]string{"f": "x"}, map[string]FileField{"file": {Filename: "a.txt", Content: []byte("c")}}),
+		WithXMLBody(map[string]string{"k": "v"}),
 		nil,
 	}
 	for _, opt := range opts {
@@ -237,5 +274,8 @@ func TestRequestOptionsApply(t *testing.T) {
 	}
 	if ro.authUser != "user" || ro.authPass != "pass" || ro.bearer != "tok" || ro.userAgent != "httpx-test" {
 		t.Error("认证/UA 选项应用失败")
+	}
+	if ro.formFields == nil || ro.formFiles == nil || ro.xmlBody == nil {
+		t.Error("XML/multipart 选项应用失败")
 	}
 }

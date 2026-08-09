@@ -61,11 +61,32 @@ func WithProtocol(p Protocol) Option
 func WithRetry(maxAttempts int, backoff Backoff) Option
 func WithLogger(l logx.Logger) Option
 func WithMetrics(m Metrics) Option
+
+// 重定向与会话(v0.2.0)
+func WithMaxRedirects(n int) Option
+func WithNoRedirect() Option
+func WithRedirectPolicy(policy func(*http.Request, []*http.Request) error) Option
+func WithCookieJar(jar http.CookieJar) Option
+func WithHooks(h Hooks) Option
+
+// 传输控制(v0.2.0)
+func WithProxy(proxy func(*http.Request) (*url.URL, error)) Option
+func WithDisableCompression(disabled bool) Option
 ```
 
 默认值:MaxIdleConns=100、MaxIdleConnsPerHost=10、
 IdleConnTimeout=90s、DialTimeout=10s、TLSHandshakeTimeout=10s、
-ResponseHeaderTimeout=30s;慢请求阈值默认 100ms。
+ResponseHeaderTimeout=30s、MaxRedirects=10;慢请求阈值默认 100ms;
+默认使用环境代理(HTTP_PROXY / HTTPS_PROXY)。
+
+```go
+// Hooks 是轻量请求钩子,全部可选,默认 no-op。
+type Hooks struct {
+	OnRequest  func(*http.Request) error
+	OnResponse func(*http.Response) error
+	OnError    func(error)
+}
+```
 
 ## 4. 协议
 
@@ -87,8 +108,9 @@ HTTP/3 注册机制(仅子包使用):
 ```go
 // ProtocolConfig 是注册协议构造器时可用的连接配置。
 type ProtocolConfig struct {
-	DialTimeout     time.Duration
-	TLSClientConfig *tls.Config
+	DialTimeout        time.Duration
+	TLSClientConfig    *tls.Config
+	DisableCompression bool
 }
 
 // RegisterHTTP3 注册 HTTP/3 RoundTripper 构造器,由 httpx/http3 子包 init 调用。
@@ -106,11 +128,21 @@ func WithBytesBody(b []byte) RequestOption
 func WithBasicAuth(user, pass string) RequestOption
 func WithBearer(token string) RequestOption
 func WithUserAgent(ua string) RequestOption
+func WithMultipartFormData(fields map[string]string, files map[string]FileField) RequestOption
+func WithXMLBody(v any) RequestOption
 ```
 
 `Post(ctx, url, body any, opts...)` 的 body 规则:
 `nil` / `io.Reader` / `string` / `[]byte` / `url.Values` 原样处理,
 其余类型按 JSON 序列化并自动设置 Content-Type。
+
+```go
+// FileField 是 multipart 文件字段。
+type FileField struct {
+	Filename string
+	Content  []byte
+}
+```
 
 ## 6. 重试
 
@@ -141,9 +173,23 @@ func WithMetrics(m Metrics) Option
 func ReadBody(resp *http.Response, maxBytes int64) ([]byte, error)
 func ReadString(resp *http.Response, maxBytes int64) (string, error)
 func JSON(resp *http.Response, out any) error
+func ReadFile(resp *http.Response, path string, maxBytes int64) error
 ```
 
 `JSON` 内置 16MiB 大小上限,防止内存被打爆。
+
+## 7.5 运行统计
+
+```go
+type Stats struct {
+	TotalRequests  uint64 // 累计请求尝试次数
+	ActiveRequests uint64 // 当前活跃请求数
+	TotalErrors    uint64 // 累计请求错误次数
+	Retries        uint64 // 累计重试次数
+}
+
+func (c *Client) Stats() Stats
+```
 
 ## 8. 错误码
 

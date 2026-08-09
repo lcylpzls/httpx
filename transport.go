@@ -17,6 +17,8 @@ type ProtocolConfig struct {
 	DialTimeout time.Duration
 	// TLSClientConfig 客户端 TLS 配置(可能为 nil)。
 	TLSClientConfig *tls.Config
+	// DisableCompression 是否关闭自动解压。
+	DisableCompression bool
 }
 
 // h3Builder 由 httpx/http3 子包 init 注册,仅 ProtocolHTTP3 使用。
@@ -63,11 +65,16 @@ func newStdTransport(cfg config, h2 bool) *http.Transport {
 	tr := &http.Transport{
 		DialContext:           dialer.DialContext,
 		ForceAttemptHTTP2:     h2,
+		Proxy:                 http.ProxyFromEnvironment,
 		MaxIdleConns:          cfg.maxIdleConns,
 		MaxIdleConnsPerHost:   cfg.maxIdleConnsPerHost,
 		IdleConnTimeout:       cfg.idleConnTimeout,
 		TLSHandshakeTimeout:   cfg.tlsHandshakeTimeout,
 		ResponseHeaderTimeout: cfg.responseHeaderTimeout,
+		DisableCompression:    cfg.disableCompression,
+	}
+	if cfg.proxySet {
+		tr.Proxy = cfg.proxy
 	}
 	if cfg.tlsClientConfig != nil {
 		tr.TLSClientConfig = cfg.tlsClientConfig.Clone()
@@ -87,8 +94,9 @@ func newHTTP2Transport(cfg config) *http2.Transport {
 		KeepAlive: 30 * time.Second,
 	}
 	tr := &http2.Transport{
-		AllowHTTP:       false,
-		IdleConnTimeout: cfg.idleConnTimeout,
+		AllowHTTP:          false,
+		IdleConnTimeout:    cfg.idleConnTimeout,
+		DisableCompression: cfg.disableCompression,
 		DialTLSContext: func(ctx context.Context, network, addr string, tlsCfg *tls.Config) (net.Conn, error) {
 			raw, err := dialer.DialContext(ctx, network, addr)
 			if err != nil {

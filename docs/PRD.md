@@ -1,6 +1,6 @@
 # httpx 产品需求(PRD)
 
-> 版本:v0.0.0(规划稿) · 状态:评审中
+> 版本:v0.2.0(规划稿) · 状态:实现中(v0.1.0 已发布)
 
 ## 1. 背景与动机
 
@@ -66,6 +66,25 @@
 
 - 对外错误统一 errx,错误码 `HTX_*`;
 - 保留原始错误链;`IsTimeout` / `IsRetryable` 判定助手。
+
+### 4.7 会话与重定向(v0.2.0)
+
+- 重定向:默认跟随(上限 10),支持 301 / 302 / 303 / 307 / 308;
+  POST 在 301 / 302 / 303 下转 GET,307 / 308 保留方法与请求体;
+  跨域跳转剥离 Authorization / Cookie 等敏感头;
+  可配置最大次数、关闭跟随、自定义策略;
+- Cookie:接入标准库 `http.CookieJar`,请求前注入、响应后保存,
+  重试与重定向全程自动维护;
+- 轻量钩子:`OnRequest`(每次尝试前)/ `OnResponse`(每次响应后)/
+  `OnError`(每次错误后),不引入中间件框架。
+
+### 4.8 请求体与传输控制(v0.2.0)
+
+- `WithMultipartFormData`:multipart/form-data 字段与文件;
+- `WithXMLBody`:XML 序列化请求体;
+- `WithProxy` / 显式关闭环境代理;`WithDisableCompression` 关闭自动解压;
+- `Client.Stats`:请求 / 活跃 / 错误 / 重试计数器,并发安全;
+- `ReadFile`:响应体落盘并统一关闭,带大小上限。
 
 ## 5. 非功能需求
 

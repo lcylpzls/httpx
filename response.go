@@ -5,6 +5,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"os"
 
 	"github.com/lcylpzls/errx"
 )
@@ -60,6 +61,18 @@ func JSON(resp *http.Response, out any) error {
 	}
 	if err := json.Unmarshal(data, out); err != nil {
 		return errx.Wrap(err, errx.KindInvalid, CodeResponseFailed, "响应 JSON 解析失败")
+	}
+	return nil
+}
+
+// ReadFile 将响应体写入文件并统一关闭 Body,上限语义同 ReadBody。
+func ReadFile(resp *http.Response, path string, maxBytes int64) error {
+	data, err := ReadBody(resp, maxBytes)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return errx.Wrap(err, errx.KindInternal, CodeResponseFailed, "写入文件失败")
 	}
 	return nil
 }
