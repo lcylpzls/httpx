@@ -139,7 +139,7 @@ func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, err
 		// 最后一次尝试:网络错误包装为重试耗尽,状态码场景返回最终响应。
 		if attempt == policy.maxAttempts {
 			if err != nil {
-				return nil, errx.Wrap(err, errx.KindUnavailable, CodeRetryExhausted, "重试耗尽").
+				return nil, errx.WrapCode(err, CodeRetryExhausted, "重试耗尽").
 					WithField("method", req.Method).
 					WithField("url", req.URL.String())
 			}
@@ -231,19 +231,19 @@ func cloneRequestForRetry(req *http.Request) (*http.Request, error) {
 	if req.GetBody != nil {
 		body, err := req.GetBody()
 		if err != nil {
-			return nil, errx.Wrap(err, errx.KindUnavailable, CodeRequestFailed, "重建请求体失败")
+			return nil, errx.WrapCode(err, CodeRequestFailed, "重建请求体失败")
 		}
 		clone.Body = body
 		return clone, nil
 	}
 	if rs, ok := req.Body.(io.ReadSeeker); ok {
 		if _, err := rs.Seek(0, io.SeekStart); err != nil {
-			return nil, errx.Wrap(err, errx.KindUnavailable, CodeRequestFailed, "重置请求体失败")
+			return nil, errx.WrapCode(err, CodeRequestFailed, "重置请求体失败")
 		}
 		clone.Body = io.NopCloser(rs)
 		return clone, nil
 	}
-	return nil, errx.New(errx.KindInvalid, CodeBodyUnreadable, "请求体不可重读,无法重试")
+	return nil, errx.NewCode(CodeBodyUnreadable, "请求体不可重读,无法重试")
 }
 
 // retryAfter 解析 Retry-After 响应头(秒数或 HTTP 日期)。

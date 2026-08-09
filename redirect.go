@@ -50,7 +50,7 @@ func (c *Client) followRedirects(ctx context.Context, req *http.Request) (*http.
 		// 未自定义策略时按次数上限截断。
 		if c.cfg.redirectPolicy == nil && len(via) > c.cfg.maxRedirects {
 			_ = resp.Body.Close()
-			return nil, errx.New(errx.KindInvalid, CodeRedirectExceeded, "重定向次数超限")
+			return nil, errx.NewCode(CodeRedirectExceeded, "重定向次数超限")
 		}
 		next, err := redirectRequest(cur, resp)
 		_ = resp.Body.Close()
@@ -60,7 +60,7 @@ func (c *Client) followRedirects(ctx context.Context, req *http.Request) (*http.
 		// 自定义策略:返回错误即终止跟随。
 		if c.cfg.redirectPolicy != nil {
 			if err := c.cfg.redirectPolicy(next, via); err != nil {
-				return nil, errx.Wrap(err, errx.KindInvalid, CodeRedirectExceeded, "重定向策略终止跟随")
+				return nil, errx.WrapCode(err, CodeRedirectExceeded, "重定向策略终止跟随")
 			}
 		}
 		cur = next
@@ -72,7 +72,7 @@ func (c *Client) followRedirects(ctx context.Context, req *http.Request) (*http.
 func redirectRequest(req *http.Request, resp *http.Response) (*http.Request, error) {
 	loc, err := resp.Location()
 	if err != nil {
-		return nil, errx.Wrap(err, errx.KindInvalid, CodeRedirectFailed, "解析重定向地址失败")
+		return nil, errx.WrapCode(err, CodeRedirectFailed, "解析重定向地址失败")
 	}
 	code := resp.StatusCode
 	method := req.Method
@@ -116,17 +116,17 @@ func replayBody(req *http.Request) (io.ReadCloser, error) {
 	if req.GetBody != nil {
 		body, err := req.GetBody()
 		if err != nil {
-			return nil, errx.Wrap(err, errx.KindUnavailable, CodeRedirectFailed, "重建请求体失败")
+			return nil, errx.WrapCode(err, CodeRedirectFailed, "重建请求体失败")
 		}
 		return body, nil
 	}
 	if rs, ok := req.Body.(io.ReadSeeker); ok {
 		if _, err := rs.Seek(0, io.SeekStart); err != nil {
-			return nil, errx.Wrap(err, errx.KindUnavailable, CodeRedirectFailed, "重置请求体失败")
+			return nil, errx.WrapCode(err, CodeRedirectFailed, "重置请求体失败")
 		}
 		return io.NopCloser(rs), nil
 	}
-	return nil, errx.New(errx.KindInvalid, CodeBodyUnreadable, "重定向请求体不可重读")
+	return nil, errx.NewCode(CodeBodyUnreadable, "重定向请求体不可重读")
 }
 
 // sameOrigin 判断两个 URL 是否同源(scheme + host 相同)。

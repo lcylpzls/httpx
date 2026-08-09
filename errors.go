@@ -38,17 +38,29 @@ const (
 
 func init() {
 	errx.RegisterCode(CodeInvalidConfig, "配置或请求参数非法")
+	errx.RegisterCodeKind(CodeInvalidConfig, errx.KindInvalid)
 	errx.RegisterCode(CodeUnsupportedProtocol, "协议未注册")
+	errx.RegisterCodeKind(CodeUnsupportedProtocol, errx.KindInvalid)
 	errx.RegisterCode(CodeDialFailed, "建立连接失败")
+	errx.RegisterCodeKind(CodeDialFailed, errx.KindUnavailable)
 	errx.RegisterCode(CodeTLSFailed, "TLS 握手失败")
+	errx.RegisterCodeKind(CodeTLSFailed, errx.KindUnavailable)
 	errx.RegisterCode(CodeRequestFailed, "请求发送失败")
+	errx.RegisterCodeKind(CodeRequestFailed, errx.KindUnavailable)
 	errx.RegisterCode(CodeResponseFailed, "读取响应失败")
+	errx.RegisterCodeKind(CodeResponseFailed, errx.KindInvalid)
 	errx.RegisterCode(CodeRetryExhausted, "重试耗尽")
+	errx.RegisterCodeKind(CodeRetryExhausted, errx.KindUnavailable)
 	errx.RegisterCode(CodeBodyTooLarge, "响应体超过大小上限")
+	errx.RegisterCodeKind(CodeBodyTooLarge, errx.KindInvalid)
 	errx.RegisterCode(CodeBodyUnreadable, "请求体不可重读")
+	errx.RegisterCodeKind(CodeBodyUnreadable, errx.KindInvalid)
 	errx.RegisterCode(CodeRedirectExceeded, "重定向次数超限")
+	errx.RegisterCodeKind(CodeRedirectExceeded, errx.KindInvalid)
 	errx.RegisterCode(CodeRedirectFailed, "重定向地址解析或构造失败")
+	errx.RegisterCodeKind(CodeRedirectFailed, errx.KindInvalid)
 	errx.RegisterCode(CodeUnexpectedStatus, "响应状态码不在期望列表")
+	errx.RegisterCodeKind(CodeUnexpectedStatus, errx.KindInvalid)
 }
 
 // IsTimeout 判断错误是否为超时:

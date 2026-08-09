@@ -45,7 +45,7 @@ func newRoundTripper(cfg config) (http.RoundTripper, error) {
 		return newHTTP2Transport(cfg), nil
 	case ProtocolHTTP3:
 		if h3Builder == nil {
-			return nil, errx.New(errx.KindInvalid, CodeUnsupportedProtocol,
+			return nil, errx.NewCode(CodeUnsupportedProtocol,
 				"HTTP/3 未注册,请导入 github.com/lcylpzls/httpx/http3")
 		}
 		return h3Builder(ProtocolConfig{
@@ -53,7 +53,7 @@ func newRoundTripper(cfg config) (http.RoundTripper, error) {
 			TLSClientConfig: cfg.tlsClientConfig,
 		})
 	default:
-		return nil, errx.Newf(errx.KindInvalid, CodeInvalidConfig, "不支持的协议: %v", cfg.protocol)
+		return nil, errx.NewCodef(CodeInvalidConfig, "不支持的协议: %v", cfg.protocol)
 	}
 }
 

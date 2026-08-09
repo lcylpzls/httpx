@@ -55,7 +55,7 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		ctx = context.Background()
 	}
 	if req == nil {
-		return nil, errx.New(errx.KindInvalid, CodeInvalidConfig, "请求不能为空")
+		return nil, errx.NewCode(CodeInvalidConfig, "请求不能为空")
 	}
 	// 请求级超时与客户端级超时取更严格者。
 	effective := c.cfg.timeout
@@ -150,7 +150,7 @@ func (c *Client) buildRequest(ctx context.Context, method, rawURL string, body a
 	if ro.xmlBody != nil {
 		data, err := xml.Marshal(ro.xmlBody)
 		if err != nil {
-			return nil, errx.Wrap(err, errx.KindInvalid, CodeInvalidConfig, "请求体 XML 序列化失败")
+			return nil, errx.WrapCode(err, CodeInvalidConfig, "请求体 XML 序列化失败")
 		}
 		r = bytes.NewReader(data)
 		contentType = "application/xml"
@@ -181,7 +181,7 @@ func (c *Client) buildRequest(ctx context.Context, method, rawURL string, body a
 	}
 	req, err := http.NewRequestWithContext(ctx, method, rawURL, r)
 	if err != nil {
-		return nil, errx.Wrap(err, errx.KindInvalid, CodeInvalidConfig, "构建请求失败")
+		return nil, errx.WrapCode(err, CodeInvalidConfig, "构建请求失败")
 	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
@@ -225,7 +225,7 @@ type reqTimeoutKey struct{}
 func marshalJSONBody(v any) ([]byte, error) {
 	data, err := json.Marshal(v)
 	if err != nil {
-		return nil, errx.Wrap(err, errx.KindInvalid, CodeInvalidConfig, "请求体 JSON 序列化失败")
+		return nil, errx.WrapCode(err, CodeInvalidConfig, "请求体 JSON 序列化失败")
 	}
 	return data, nil
 }
@@ -240,22 +240,22 @@ func wrapDoError(err error) error {
 	}
 	var netOpErr *net.OpError
 	if errors.As(err, &netOpErr) && netOpErr.Op == "dial" {
-		return errx.Wrap(err, errx.KindUnavailable, CodeDialFailed, "建立连接失败")
+		return errx.WrapCode(err, CodeDialFailed, "建立连接失败")
 	}
 	if isTLSError(err) {
-		return errx.Wrap(err, errx.KindUnavailable, CodeTLSFailed, "TLS 握手失败")
+		return errx.WrapCode(err, CodeTLSFailed, "TLS 握手失败")
 	}
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
 		switch {
 		case strings.Contains(urlErr.Op, "dial"):
-			return errx.Wrap(err, errx.KindUnavailable, CodeDialFailed, "建立连接失败")
+			return errx.WrapCode(err, CodeDialFailed, "建立连接失败")
 		case strings.Contains(urlErr.Op, "tls"):
-			return errx.Wrap(err, errx.KindUnavailable, CodeTLSFailed, "TLS 握手失败")
+			return errx.WrapCode(err, CodeTLSFailed, "TLS 握手失败")
 		}
-		return errx.Wrap(err, errx.KindUnavailable, CodeRequestFailed, "请求发送失败")
+		return errx.WrapCode(err, CodeRequestFailed, "请求发送失败")
 	}
-	return errx.Wrap(err, errx.KindUnavailable, CodeRequestFailed, "请求发送失败")
+	return errx.WrapCode(err, CodeRequestFailed, "请求发送失败")
 }
 
 // isTLSError 识别 crypto/tls 层的典型错误:

@@ -18,10 +18,10 @@ const defaultMaxJSONBytes int64 = 16 << 20
 // maxBytes 为大小上限,超过时返回 HTX_BODY_TOO_LARGE 且 Body 已关闭。
 func ReadBody(resp *http.Response, maxBytes int64) ([]byte, error) {
 	if resp == nil {
-		return nil, errx.New(errx.KindInvalid, CodeResponseFailed, "响应不能为空")
+		return nil, errx.NewCode(CodeResponseFailed, "响应不能为空")
 	}
 	if maxBytes <= 0 {
-		return nil, errx.New(errx.KindInvalid, CodeInvalidConfig, "响应体大小上限必须为正数")
+		return nil, errx.NewCode(CodeInvalidConfig, "响应体大小上限必须为正数")
 	}
 	if resp.Body == nil {
 		return []byte{}, nil
@@ -34,7 +34,7 @@ func ReadBody(resp *http.Response, maxBytes int64) ([]byte, error) {
 	} else {
 		data, err = io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 		if err == nil && int64(len(data)) > maxBytes {
-			return nil, errx.New(errx.KindInvalid, CodeBodyTooLarge, "响应体超过大小上限")
+			return nil, errx.NewCode(CodeBodyTooLarge, "响应体超过大小上限")
 		}
 	}
 	if err != nil {
@@ -60,7 +60,7 @@ func JSON(resp *http.Response, out any) error {
 		return err
 	}
 	if err := json.Unmarshal(data, out); err != nil {
-		return errx.Wrap(err, errx.KindInvalid, CodeResponseFailed, "响应 JSON 解析失败")
+		return errx.WrapCode(err, CodeResponseFailed, "响应 JSON 解析失败")
 	}
 	return nil
 }
@@ -85,10 +85,10 @@ const streamChunkSize = 32 * 1024
 // fn 返回错误时终止读取并返回 HTX_RESPONSE_FAILED。
 func ReadStream(resp *http.Response, fn func([]byte) error, maxBytes int64) error {
 	if resp == nil {
-		return errx.New(errx.KindInvalid, CodeResponseFailed, "响应不能为空")
+		return errx.NewCode(CodeResponseFailed, "响应不能为空")
 	}
 	if maxBytes <= 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "响应体大小上限必须为正数")
+		return errx.NewCode(CodeInvalidConfig, "响应体大小上限必须为正数")
 	}
 	if resp.Body == nil {
 		return nil
@@ -101,7 +101,7 @@ func ReadStream(resp *http.Response, fn func([]byte) error, maxBytes int64) erro
 		if n > 0 {
 			total += int64(n)
 			if total > maxBytes {
-				return errx.New(errx.KindInvalid, CodeBodyTooLarge, "响应体超过大小上限")
+				return errx.NewCode(CodeBodyTooLarge, "响应体超过大小上限")
 			}
 			if err := fn(buf[:n]); err != nil {
 				return errx.Wrap(err, errx.KindCancelled, CodeResponseFailed, "流式回调终止")
@@ -125,7 +125,7 @@ const statusSummaryLimit = 512
 // 错误附带 status 与响应体摘要字段。
 func EnsureStatus(resp *http.Response, codes ...int) error {
 	if resp == nil {
-		return errx.New(errx.KindInvalid, CodeResponseFailed, "响应不能为空")
+		return errx.NewCode(CodeResponseFailed, "响应不能为空")
 	}
 	for _, code := range codes {
 		if resp.StatusCode == code {
@@ -138,7 +138,7 @@ func EnsureStatus(resp *http.Response, codes ...int) error {
 		_ = resp.Body.Close()
 		summary = string(data)
 	}
-	return errx.Newf(errx.KindInvalid, CodeUnexpectedStatus,
+	return errx.NewCodef(CodeUnexpectedStatus,
 		"响应状态码 %d 不在允许列表", resp.StatusCode).
 		WithField("status", resp.StatusCode).
 		WithField("body", summary)

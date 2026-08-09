@@ -315,65 +315,65 @@ func WithExpectContinueTimeout(d time.Duration) Option {
 // validateConfig 校验配置参数,负数超时/连接池参数与非法协议均视为非法。
 func validateConfig(cfg config) error {
 	if cfg.timeout < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "整体超时不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "整体超时不能为负数")
 	}
 	if cfg.dialTimeout < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "DialTimeout 不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "DialTimeout 不能为负数")
 	}
 	if cfg.tlsHandshakeTimeout < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "TLSHandshakeTimeout 不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "TLSHandshakeTimeout 不能为负数")
 	}
 	if cfg.responseHeaderTimeout < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "ResponseHeaderTimeout 不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "ResponseHeaderTimeout 不能为负数")
 	}
 	if cfg.maxIdleConns < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "MaxIdleConns 不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "MaxIdleConns 不能为负数")
 	}
 	if cfg.maxIdleConnsPerHost < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "MaxIdleConnsPerHost 不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "MaxIdleConnsPerHost 不能为负数")
 	}
 	if cfg.idleConnTimeout < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "IdleConnTimeout 不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "IdleConnTimeout 不能为负数")
 	}
 	if cfg.slowThreshold < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "SlowThreshold 不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "SlowThreshold 不能为负数")
 	}
 	if cfg.maxRedirects < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "MaxRedirects 不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "MaxRedirects 不能为负数")
 	}
 	if cfg.maxConcurrency < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "MaxConcurrency 不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "MaxConcurrency 不能为负数")
 	}
 	if cfg.h2ReadIdleTimeout < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "HTTP/2 读空闲超时不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "HTTP/2 读空闲超时不能为负数")
 	}
 	if cfg.h2PingTimeout < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "HTTP/2 Ping 超时不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "HTTP/2 Ping 超时不能为负数")
 	}
 	if cfg.maxResponseHeaderBytes < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "MaxResponseHeaderBytes 不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "MaxResponseHeaderBytes 不能为负数")
 	}
 	if cfg.maxConnsPerHost < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "MaxConnsPerHost 不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "MaxConnsPerHost 不能为负数")
 	}
 	if cfg.expectContinueTimeout < 0 {
-		return errx.New(errx.KindInvalid, CodeInvalidConfig, "ExpectContinueTimeout 不能为负数")
+		return errx.NewCode(CodeInvalidConfig, "ExpectContinueTimeout 不能为负数")
 	}
 	if cfg.protocol < ProtocolAuto || cfg.protocol > ProtocolHTTP3 {
-		return errx.Newf(errx.KindInvalid, CodeInvalidConfig, "不支持的协议: %v", cfg.protocol)
+		return errx.NewCodef(CodeInvalidConfig, "不支持的协议: %v", cfg.protocol)
 	}
 	if cfg.retry != nil {
 		if cfg.retry.maxAttempts < 1 {
-			return errx.New(errx.KindInvalid, CodeInvalidConfig, "重试次数必须大于等于 1")
+			return errx.NewCode(CodeInvalidConfig, "重试次数必须大于等于 1")
 		}
 		if cfg.retry.backoff == nil {
-			return errx.New(errx.KindInvalid, CodeInvalidConfig, "重试退避策略不能为空")
+			return errx.NewCode(CodeInvalidConfig, "重试退避策略不能为空")
 		}
 		if cfg.retry.totalTimeout < 0 {
-			return errx.New(errx.KindInvalid, CodeInvalidConfig, "重试总时长不能为负数")
+			return errx.NewCode(CodeInvalidConfig, "重试总时长不能为负数")
 		}
 		if cfg.retry.maxBackoff < 0 {
-			return errx.New(errx.KindInvalid, CodeInvalidConfig, "重试退避上限不能为负数")
+			return errx.NewCode(CodeInvalidConfig, "重试退避上限不能为负数")
 		}
 	}
 	return nil
@@ -515,7 +515,7 @@ func bodyToReader(body any) (io.Reader, string, error) {
 	default:
 		data, err := json.Marshal(b)
 		if err != nil {
-			return nil, "", errx.Wrap(err, errx.KindInvalid, CodeInvalidConfig, "请求体 JSON 序列化失败")
+			return nil, "", errx.WrapCode(err, CodeInvalidConfig, "请求体 JSON 序列化失败")
 		}
 		return bytes.NewReader(data), "application/json", nil
 	}
