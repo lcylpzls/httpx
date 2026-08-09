@@ -3,7 +3,7 @@
 基于 `net/http` 的高性能 HTTP 客户端库:连接复用、分层超时、可选重试,
 可适配 HTTP/1 / HTTP/2 / HTTP/3,与 errx / logx 打通。
 
-> 当前状态:**v0.5.0 实现完成,待 CI 验证与发布**。
+> 当前状态:**v1.0.0 正式版,API 已冻结**。
 
 ## 定位
 
@@ -81,6 +81,14 @@ client, err := httpx.New(httpx.WithProtocol(httpx.ProtocolHTTP3))
 - 三平台 CI(ubuntu / windows / macos);
 - 性能基准与裸 `net/http` 同量级(见 docs/iteration-plan.md)。
 
+## 稳定性承诺
+
+- 本库遵循[语义化版本](https://semver.org/lang/zh-CN/);
+- v1.0.0 起公开 API 冻结:新增以次版本发布,破坏性变更仅随主版本;
+- 行为修复与安全修复以补丁版本发布,并记录于 CHANGELOG;
+- 每个版本发布前执行:100% 覆盖率、race、staticcheck、fuzz、
+  govulncheck、apidiff 对比与三平台 CI。
+
 ## 文档
 
 - [docs/README.md](docs/README.md) — 文档索引
@@ -97,6 +105,7 @@ client, err := httpx.New(httpx.WithProtocol(httpx.ProtocolHTTP3))
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — 开发流程与质量门槛
 - [SECURITY.md](SECURITY.md) — 安全说明与漏洞报告
+- [docs/release.md](docs/release.md) — 版本与发布流程
 
 ## License
 

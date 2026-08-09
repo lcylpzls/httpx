@@ -71,6 +71,8 @@ multipart、Stats、ReadFile 全路径测试,100% 覆盖率。
 **验收**:打磨批次全路径测试 100% 覆盖;apidiff 报告无意外破坏;
 正式版 API 冻结。
 
+> 状态:v0.1.0 – v1.0.0 全部完成并发布。
+
 ## 2. 质量门槛(每阶段强制)
 
 - 语句覆盖率 100%;`go vet` / `staticcheck` 零告警;`go test -race` 全绿;
