@@ -79,6 +79,10 @@ type config struct {
 	proxy                 func(*http.Request) (*url.URL, error)
 	proxySet              bool
 	disableCompression    bool
+	dnsCache              *DNSCache
+	maxConcurrency        int
+	h2ReadIdleTimeout     time.Duration
+	h2PingTimeout         time.Duration
 }
 
 // defaultConfig 返回生产实践默认配置。
@@ -167,6 +171,28 @@ func WithRetry(maxAttempts int, backoff Backoff) Option {
 	}
 }
 
+// RetryPolicy 描述完整重试行为,MaxAttempts 含首次尝试。
+type RetryPolicy struct {
+	// MaxAttempts 最大尝试次数(含首次)。
+	MaxAttempts int
+	// Backoff 退避策略。
+	Backoff Backoff
+	// Retryable 自定义可重试判定;nil 使用默认规则
+	// (幂等方法 + 可重试错误 + 429/5xx 状态码)。
+	Retryable func(*http.Request, *http.Response, error) bool
+}
+
+// WithRetryPolicy 以完整策略开启重试,支持自定义可重试判定。
+func WithRetryPolicy(p RetryPolicy) Option {
+	return func(c *config) {
+		c.retry = &retryPolicy{
+			maxAttempts: p.MaxAttempts,
+			backoff:     p.Backoff,
+			retryable:   p.Retryable,
+		}
+	}
+}
+
 // WithLogger 注入结构化日志实现,空表示关闭日志(默认)。
 func WithLogger(l logx.Logger) Option {
 	return func(c *config) { c.logger = l }
@@ -230,6 +256,27 @@ func WithDisableCompression(disabled bool) Option {
 	return func(c *config) { c.disableCompression = disabled }
 }
 
+// WithDNSCache 开启按 TTL 缓存的主机解析,减少 DNS 往返。
+// cache 由 NewDNSCache 创建;解析失败或拨号全部失败时自动回退系统解析。
+func WithDNSCache(cache *DNSCache) Option {
+	return func(c *config) { c.dnsCache = cache }
+}
+
+// WithMaxConcurrency 限制客户端同时在途请求数;0 表示不限制。
+// 超过上限的请求排队等待,等待受 context 取消约束。
+func WithMaxConcurrency(n int) Option {
+	return func(c *config) { c.maxConcurrency = n }
+}
+
+// WithHTTP2HealthCheck 启用强制 HTTP/2 连接的读空闲与 Ping 健康检查。
+// 仅 ProtocolHTTP2 生效;任一参数为 0 表示对应检查关闭。
+func WithHTTP2HealthCheck(readIdle, pingTimeout time.Duration) Option {
+	return func(c *config) {
+		c.h2ReadIdleTimeout = readIdle
+		c.h2PingTimeout = pingTimeout
+	}
+}
+
 // validateConfig 校验配置参数,负数超时/连接池参数与非法协议均视为非法。
 func validateConfig(cfg config) error {
 	if cfg.timeout < 0 {
@@ -258,6 +305,15 @@ func validateConfig(cfg config) error {
 	}
 	if cfg.maxRedirects < 0 {
 		return errx.New(errx.KindInvalid, CodeInvalidConfig, "MaxRedirects 不能为负数")
+	}
+	if cfg.maxConcurrency < 0 {
+		return errx.New(errx.KindInvalid, CodeInvalidConfig, "MaxConcurrency 不能为负数")
+	}
+	if cfg.h2ReadIdleTimeout < 0 {
+		return errx.New(errx.KindInvalid, CodeInvalidConfig, "HTTP/2 读空闲超时不能为负数")
+	}
+	if cfg.h2PingTimeout < 0 {
+		return errx.New(errx.KindInvalid, CodeInvalidConfig, "HTTP/2 Ping 超时不能为负数")
 	}
 	if cfg.protocol < ProtocolAuto || cfg.protocol > ProtocolHTTP3 {
 		return errx.Newf(errx.KindInvalid, CodeInvalidConfig, "不支持的协议: %v", cfg.protocol)
@@ -291,6 +347,7 @@ type requestOptions struct {
 	formFields   map[string]string
 	formFiles    map[string]FileField
 	multipartSet bool
+	timeout      time.Duration
 }
 
 // FileField 是 multipart 文件字段。
@@ -372,6 +429,12 @@ func WithMultipartFormData(fields map[string]string, files map[string]FileField)
 // WithXMLBody 以 XML 请求体发送,自动设置 Content-Type: application/xml。
 func WithXMLBody(v any) RequestOption {
 	return func(r *requestOptions) { r.xmlBody = v }
+}
+
+// WithRequestTimeout 设置请求级整体超时,覆盖该请求的完整生命周期(含重试与重定向)。
+// 与客户端级超时同时存在时取更严格者。
+func WithRequestTimeout(d time.Duration) RequestOption {
+	return func(r *requestOptions) { r.timeout = d }
 }
 
 // bodyToReader 将 Post 的 body 参数转换为可读请求体:

@@ -76,3 +76,42 @@ func ReadFile(resp *http.Response, path string, maxBytes int64) error {
 	}
 	return nil
 }
+
+// streamChunkSize 是 ReadStream 的单块读取大小。
+const streamChunkSize = 32 * 1024
+
+// ReadStream 逐块读取响应体并回调 fn,统一关闭 Body。
+// maxBytes 为大小上限,超出立即返回 HTX_BODY_TOO_LARGE;
+// fn 返回错误时终止读取并返回 HTX_RESPONSE_FAILED。
+func ReadStream(resp *http.Response, fn func([]byte) error, maxBytes int64) error {
+	if resp == nil {
+		return errx.New(errx.KindInvalid, CodeResponseFailed, "响应不能为空")
+	}
+	if maxBytes <= 0 {
+		return errx.New(errx.KindInvalid, CodeInvalidConfig, "响应体大小上限必须为正数")
+	}
+	if resp.Body == nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	buf := make([]byte, streamChunkSize)
+	var total int64
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			total += int64(n)
+			if total > maxBytes {
+				return errx.New(errx.KindInvalid, CodeBodyTooLarge, "响应体超过大小上限")
+			}
+			if err := fn(buf[:n]); err != nil {
+				return errx.Wrap(err, errx.KindCancelled, CodeResponseFailed, "流式回调终止")
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return errx.Wrap(err, errx.KindUnavailable, CodeResponseFailed, "读取响应体失败")
+		}
+	}
+}

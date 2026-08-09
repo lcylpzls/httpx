@@ -72,6 +72,12 @@ func WithHooks(h Hooks) Option
 // 传输控制(v0.2.0)
 func WithProxy(proxy func(*http.Request) (*url.URL, error)) Option
 func WithDisableCompression(disabled bool) Option
+
+// 性能与流控(v0.3.0)
+func WithRetryPolicy(p RetryPolicy) Option
+func WithDNSCache(cache *DNSCache) Option
+func WithMaxConcurrency(n int) Option
+func WithHTTP2HealthCheck(readIdle, pingTimeout time.Duration) Option
 ```
 
 默认值:MaxIdleConns=100、MaxIdleConnsPerHost=10、
@@ -130,6 +136,7 @@ func WithBearer(token string) RequestOption
 func WithUserAgent(ua string) RequestOption
 func WithMultipartFormData(fields map[string]string, files map[string]FileField) RequestOption
 func WithXMLBody(v any) RequestOption
+func WithRequestTimeout(d time.Duration) RequestOption
 ```
 
 `Post(ctx, url, body any, opts...)` 的 body 规则:
@@ -154,6 +161,17 @@ func FixedBackoff(interval time.Duration) Backoff
 func WithRetry(maxAttempts int, backoff Backoff) Option
 ```
 
+```go
+// RetryPolicy 是完整重试策略,Retryable 为空时使用默认规则。
+type RetryPolicy struct {
+	MaxAttempts int
+	Backoff     Backoff
+	Retryable   func(*http.Request, *http.Response, error) bool
+}
+
+func WithRetryPolicy(p RetryPolicy) Option
+```
+
 重试规则:默认关闭;开启后仅幂等方法
 (GET / HEAD / OPTIONS / PUT / DELETE)与可重试错误参与重试;
 状态码 429 / 500 / 502 / 503 / 504 可重试;
@@ -174,6 +192,7 @@ func ReadBody(resp *http.Response, maxBytes int64) ([]byte, error)
 func ReadString(resp *http.Response, maxBytes int64) (string, error)
 func JSON(resp *http.Response, out any) error
 func ReadFile(resp *http.Response, path string, maxBytes int64) error
+func ReadStream(resp *http.Response, fn func([]byte) error, maxBytes int64) error
 ```
 
 `JSON` 内置 16MiB 大小上限,防止内存被打爆。
@@ -189,6 +208,12 @@ type Stats struct {
 }
 
 func (c *Client) Stats() Stats
+```
+
+```go
+// DNSCache 是按 TTL 缓存主机解析的线程安全解析器。
+func NewDNSCache(ttl time.Duration) *DNSCache
+func (c *DNSCache) Reset()
 ```
 
 ## 8. 错误码

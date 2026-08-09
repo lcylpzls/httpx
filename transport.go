@@ -76,6 +76,11 @@ func newStdTransport(cfg config, h2 bool) *http.Transport {
 	if cfg.proxySet {
 		tr.Proxy = cfg.proxy
 	}
+	if cfg.dnsCache != nil {
+		tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialWithDNSCache(ctx, dialer, cfg.dnsCache, network, addr)
+		}
+	}
 	if cfg.tlsClientConfig != nil {
 		tr.TLSClientConfig = cfg.tlsClientConfig.Clone()
 	}
@@ -97,6 +102,8 @@ func newHTTP2Transport(cfg config) *http2.Transport {
 		AllowHTTP:          false,
 		IdleConnTimeout:    cfg.idleConnTimeout,
 		DisableCompression: cfg.disableCompression,
+		ReadIdleTimeout:    cfg.h2ReadIdleTimeout,
+		PingTimeout:        cfg.h2PingTimeout,
 		DialTLSContext: func(ctx context.Context, network, addr string, tlsCfg *tls.Config) (net.Conn, error) {
 			raw, err := dialer.DialContext(ctx, network, addr)
 			if err != nil {
@@ -119,4 +126,28 @@ func newHTTP2Transport(cfg config) *http2.Transport {
 		tr.TLSClientConfig = cfg.tlsClientConfig.Clone()
 	}
 	return tr
+}
+
+// dialWithDNSCache 优先使用缓存解析结果拨号:
+// 逐 IP 尝试,全部失败或解析失败时回退系统解析。
+func dialWithDNSCache(ctx context.Context, dialer *net.Dialer, cache *DNSCache, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	// IP 直连无需解析。
+	if net.ParseIP(host) != nil {
+		return dialer.DialContext(ctx, network, addr)
+	}
+	ips, err := cache.LookupIPAddr(ctx, host)
+	if err != nil || len(ips) == 0 {
+		return dialer.DialContext(ctx, network, addr)
+	}
+	for _, ip := range ips {
+		conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+		if err == nil {
+			return conn, nil
+		}
+	}
+	return dialer.DialContext(ctx, network, addr)
 }

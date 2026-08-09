@@ -1,6 +1,6 @@
 # httpx 产品需求(PRD)
 
-> 版本:v0.2.0(规划稿) · 状态:实现中(v0.1.0 已发布)
+> 版本:v0.3.0(规划稿) · 状态:实现中(v0.1.0 / v0.2.0 已发布)
 
 ## 1. 背景与动机
 
@@ -85,6 +85,19 @@
 - `WithProxy` / 显式关闭环境代理;`WithDisableCompression` 关闭自动解压;
 - `Client.Stats`:请求 / 活跃 / 错误 / 重试计数器,并发安全;
 - `ReadFile`:响应体落盘并统一关闭,带大小上限。
+
+### 4.9 性能与流控(v0.3.0)
+
+- 请求级超时:`WithTimeout` 请求选项覆盖单次请求完整生命周期,
+  与客户端级超时取更严格者;
+- 自定义重试策略:`WithRetryPolicy` 支持业务自定义可重试判定,
+  默认规则保持不变;
+- DNS 缓存:`WithDNSCache` 按 TTL 缓存主机解析结果,
+  支持注入自定义 resolver,拨号失败自动回退系统解析;
+- 并发限流:`WithMaxConcurrency` 限制客户端同时在途请求数,
+  等待受 ctx 取消约束;
+- HTTP/2 健康检查:`WithHTTP2HealthCheck` 启用读空闲超时与 Ping 超时;
+- 流式响应:`ReadStream` 逐块回调读取,带大小上限。
 
 ## 5. 非功能需求
 

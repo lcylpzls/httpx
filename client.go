@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/lcylpzls/errx"
 )
@@ -22,6 +23,7 @@ type Client struct {
 	cfg   config
 	rt    http.RoundTripper
 	stats clientStats
+	sem   chan struct{}
 }
 
 // New 创建 HTTP 客户端。协议与连接池在创建时固定,运行期不可变。
@@ -39,7 +41,11 @@ func New(opts ...Option) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{cfg: cfg, rt: rt}, nil
+	c := &Client{cfg: cfg, rt: rt}
+	if cfg.maxConcurrency > 0 {
+		c.sem = make(chan struct{}, cfg.maxConcurrency)
+	}
+	return c, nil
 }
 
 // Do 执行一次请求并返回响应。
@@ -51,11 +57,27 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	if req == nil {
 		return nil, errx.New(errx.KindInvalid, CodeInvalidConfig, "请求不能为空")
 	}
-	if c.cfg.timeout > 0 {
+	// 请求级超时与客户端级超时取更严格者。
+	effective := c.cfg.timeout
+	if reqTimeout, ok := req.Context().Value(reqTimeoutKey{}).(time.Duration); ok && reqTimeout > 0 {
+		if effective == 0 || reqTimeout < effective {
+			effective = reqTimeout
+		}
+	}
+	if effective > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, c.cfg.timeout)
+		ctx, cancel = context.WithTimeout(ctx, effective)
 		defer cancel()
 		req = req.WithContext(ctx)
+	}
+	// 并发限流:等待许可,受 context 取消约束。
+	if c.sem != nil {
+		select {
+		case c.sem <- struct{}{}:
+			defer func() { <-c.sem }()
+		case <-ctx.Done():
+			return nil, errx.Wrap(ctx.Err(), errx.KindCancelled, CodeRequestFailed, "等待并发许可被取消")
+		}
 	}
 	resp, err := c.followRedirects(ctx, req)
 	if err != nil {
@@ -183,8 +205,14 @@ func (c *Client) buildRequest(ctx context.Context, method, rawURL string, body a
 	if ro.userAgent != "" {
 		req.Header.Set("User-Agent", ro.userAgent)
 	}
+	if ro.timeout > 0 {
+		req = req.WithContext(context.WithValue(req.Context(), reqTimeoutKey{}, ro.timeout))
+	}
 	return req, nil
 }
+
+// reqTimeoutKey 是请求级超时的 context 键。
+type reqTimeoutKey struct{}
 
 // marshalJSONBody 序列化 JSON 请求体。
 func marshalJSONBody(v any) ([]byte, error) {

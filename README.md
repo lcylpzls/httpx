@@ -3,7 +3,7 @@
 基于 `net/http` 的高性能 HTTP 客户端库:连接复用、分层超时、可选重试,
 可适配 HTTP/1 / HTTP/2 / HTTP/3,与 errx / logx 打通。
 
-> 当前状态:**v0.2.0 实现完成,待 CI 验证与发布**。
+> 当前状态:**v0.3.0 实现完成,待 CI 验证与发布**。
 
 ## 定位
 
@@ -64,6 +64,12 @@ client, err := httpx.New(httpx.WithProtocol(httpx.ProtocolHTTP3))
 - 钩子:OnRequest / OnResponse / OnError 轻量回调;
 - 请求体:JSON / XML / multipart / 表单 / 字节;
 - 统计:Client.Stats 请求、活跃、错误、重试计数。
+- 请求级超时:WithRequestTimeout,与客户端超时取更严格者;
+- 重试策略:WithRetryPolicy 自定义可重试判定;
+- DNS 缓存:WithDNSCache 按 TTL 缓存解析,失败自动回退;
+- 并发限流:WithMaxConcurrency 控制同时在途请求;
+- HTTP/2 健康检查:WithHTTP2HealthCheck 读空闲 + Ping;
+- 流式响应:ReadStream 逐块回调,带大小上限。
 
 ## 质量门槛
 
@@ -78,6 +84,7 @@ client, err := httpx.New(httpx.WithProtocol(httpx.ProtocolHTTP3))
 - [examples/basic](examples/basic) — 基础请求与 JSON 解析
 - [examples/retry](examples/retry) — 幂等重试与退避
 - [examples/session](examples/session) — Cookie 会话与重定向
+- [examples/limit](examples/limit) — 并发限流与 DNS 缓存
 - [examples/http3](examples/http3) — HTTP/3 接入
 
 ## License

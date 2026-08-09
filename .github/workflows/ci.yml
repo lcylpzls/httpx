@@ -88,7 +88,7 @@ jobs:
 
       - name: Build and vet examples
         run: |
-          for dir in basic retry session http3; do
+          for dir in basic retry session limit http3; do
             if [ -d examples/$dir ]; then
               (cd examples/$dir && go build ./... && go vet ./...)
             fi

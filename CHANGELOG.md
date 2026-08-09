@@ -9,6 +9,22 @@
 - 完成 PRD、架构、API 草案、迭代计划与决策记录;
 - D1–D6 决策点已全部确认并冻结 v0.1.0 API(见 docs/api-design.md)。
 
+## [v0.3.0] - 2026-08-09
+
+### 新增
+
+- 请求级超时:WithTimeout 请求选项,与客户端级超时取更严格者;
+- 自定义重试策略:WithRetryPolicy(Retryable 回调),WithRetry 保持兼容;
+- DNS 缓存:WithDNSCache(TTL + 可注入 resolver + 失败回退);
+- 并发限流:WithMaxConcurrency(0 表示不限,等待受 ctx 取消约束);
+- HTTP/2 健康检查:WithHTTP2HealthCheck(读空闲 + Ping 超时);
+- ReadStream 流式响应助手,逐块回调,带大小上限。
+
+### 质量
+
+- 核心与 http3 子包覆盖率 100%,race / vet / staticcheck / fuzz 全绿;
+- 新增限流与 DNS 缓存示例,三平台 CI 全量验证。
+
 ## [v0.2.0] - 2026-08-09
 
 ### 新增

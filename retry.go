@@ -66,6 +66,7 @@ func FixedBackoff(interval time.Duration) Backoff {
 type retryPolicy struct {
 	maxAttempts int
 	backoff     Backoff
+	retryable   func(*http.Request, *http.Response, error) bool
 }
 
 // retryableStatuses 是可重试的响应状态码:
@@ -112,16 +113,15 @@ func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, err
 		}
 		resp, err := c.attempt(current, attempt)
 
-		// 成功或不可重试状态码:直接返回。
-		if err == nil && !retryableStatus(resp.StatusCode) {
+		// 自定义策略或默认规则判定是否重试。
+		if !c.shouldRetry(req, resp, err) {
+			if err != nil {
+				return nil, err
+			}
 			return resp, nil
 		}
-		// 错误但不可重试:直接返回。
-		if err != nil && !IsRetryable(err) {
-			return nil, err
-		}
-		// 非幂等方法:无论错误或可重试状态码都不重试。
-		if !idempotentMethod(req.Method) {
+		// 默认规则下非幂等方法不重试(自定义策略不受此限)。
+		if policy.retryable == nil && !idempotentMethod(req.Method) {
 			if err != nil {
 				return nil, err
 			}
@@ -156,6 +156,20 @@ func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, err
 		case <-time.After(wait):
 		}
 	}
+}
+
+// shouldRetry 按自定义策略或默认规则判断是否值得重试。
+func (c *Client) shouldRetry(req *http.Request, resp *http.Response, err error) bool {
+	if c.cfg.retry == nil {
+		return false
+	}
+	if c.cfg.retry.retryable != nil {
+		return c.cfg.retry.retryable(req, resp, err)
+	}
+	if err != nil {
+		return IsRetryable(err)
+	}
+	return retryableStatus(resp.StatusCode)
 }
 
 // attempt 执行单次请求尝试:统计、Cookie 注入、钩子与观测。
