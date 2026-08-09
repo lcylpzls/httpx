@@ -78,6 +78,8 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		// 才取消上下文，避免 HTTP/2 / HTTP/3 在读取响应体前被本地取消。
 		if resp.Body != nil {
 			resp.Body = &timeoutBody{ReadCloser: resp.Body, cancel: cancel}
+		} else {
+			cancel()
 		}
 		return resp, nil
 	}
