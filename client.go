@@ -42,6 +42,9 @@ func New(opts ...Option) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cfg.roundTripperWrapper != nil {
+		rt = cfg.roundTripperWrapper(rt)
+	}
 	c := &Client{cfg: cfg, rt: rt}
 	if cfg.maxConcurrency > 0 {
 		c.sem = make(chan struct{}, cfg.maxConcurrency)

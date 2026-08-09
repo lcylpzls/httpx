@@ -87,6 +87,7 @@ type config struct {
 	maxResponseHeaderBytes int64
 	maxConnsPerHost        int
 	expectContinueTimeout  time.Duration
+	roundTripperWrapper    func(http.RoundTripper) http.RoundTripper
 }
 
 // defaultConfig 返回生产实践默认配置。
@@ -310,6 +311,16 @@ func WithMaxConnsPerHost(n int) Option {
 // 0 表示不等待。
 func WithExpectContinueTimeout(d time.Duration) Option {
 	return func(c *config) { c.expectContinueTimeout = d }
+}
+
+// WithRoundTripperWrapper 包装内部 RoundTripper（保留协议选择，
+// 适合注入链路追踪、限流等传输中间层）。nil 包装器会被忽略。
+func WithRoundTripperWrapper(wrap func(http.RoundTripper) http.RoundTripper) Option {
+	return func(c *config) {
+		if wrap != nil {
+			c.roundTripperWrapper = wrap
+		}
+	}
 }
 
 // validateConfig 校验配置参数,负数超时/连接池参数与非法协议均视为非法。

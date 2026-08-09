@@ -30,6 +30,80 @@ func TestNewSuccess(t *testing.T) {
 	}
 }
 
+// wrapRT 测试用 RoundTripper 包装器。
+type wrapRT struct {
+	inner http.RoundTripper
+}
+
+func (w *wrapRT) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("X-Trace-Wrapped", "1")
+	return w.inner.RoundTrip(req)
+}
+
+// TestWithRoundTripperWrapper 覆盖传输层包装（链路追踪插拔点）。
+func TestWithRoundTripperWrapper(t *testing.T) {
+	var inner http.RoundTripper
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Trace-Wrapped") != "1" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	client, err := New(WithRoundTripperWrapper(func(rt http.RoundTripper) http.RoundTripper {
+		inner = rt
+		return &wrapRT{inner: rt}
+	}))
+	if err != nil {
+		t.Fatalf("New 失败:%v", err)
+	}
+	resp, err := client.Get(context.Background(), srv.URL)
+	if err != nil {
+		t.Fatalf("请求失败:%v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("包装器未生效,状态码=%d", resp.StatusCode)
+	}
+	if inner == nil {
+		t.Fatal("包装器应收到内部 RoundTripper")
+	}
+
+	// nil 包装器被忽略。
+	client2, err := New(WithRoundTripperWrapper(nil))
+	if err != nil || client2 == nil {
+		t.Fatalf("nil 包装器应忽略:err=%v", err)
+	}
+}
+
+// nilBodyRT 返回无响应体的 RoundTripper。
+type nilBodyRT struct{}
+
+func (nilBodyRT) RoundTrip(*http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Header: make(http.Header)}, nil
+}
+
+// TestTimeoutNilBody 覆盖超时响应体为空的取消分支。
+func TestTimeoutNilBody(t *testing.T) {
+	client, err := New(WithTimeout(time.Second))
+	if err != nil {
+		t.Fatalf("New 失败:%v", err)
+	}
+	client.rt = nilBodyRT{}
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Do(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Do 失败:%v", err)
+	}
+	if resp.Body != nil {
+		t.Fatal("应保持 nil Body")
+	}
+}
+
 // TestHTTP2TimeoutBodyRead 回归：HTTP/2 客户端超时不得在读取响应体前取消流。
 func TestHTTP2TimeoutBodyRead(t *testing.T) {
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
