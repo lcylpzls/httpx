@@ -30,6 +30,37 @@ func TestNewSuccess(t *testing.T) {
 	}
 }
 
+// TestHTTP2TimeoutBodyRead 回归：HTTP/2 客户端超时不得在读取响应体前取消流。
+func TestHTTP2TimeoutBodyRead(t *testing.T) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("hello h2"))
+	}))
+	srv.EnableHTTP2 = true
+	srv.StartTLS()
+	defer srv.Close()
+	rootCAs := srv.Client().Transport.(*http.Transport).TLSClientConfig.RootCAs
+	client, err := New(
+		WithProtocol(ProtocolHTTP2),
+		WithTimeout(5*time.Second),
+		WithTLSClientConfig(&tls.Config{RootCAs: rootCAs}),
+	)
+	if err != nil {
+		t.Fatalf("New 失败:%v", err)
+	}
+	resp, err := client.Get(context.Background(), srv.URL)
+	if err != nil {
+		t.Fatalf("HTTP/2 请求失败:%v", err)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("带超时读取响应体失败:%v", err)
+	}
+	if resp.ProtoMajor != 2 || string(data) != "hello h2" {
+		t.Errorf("响应不符:proto=%s body=%q", resp.Proto, data)
+	}
+}
+
 func TestNewHTTP3Unregistered(t *testing.T) {
 	_, err := New(WithProtocol(ProtocolHTTP3))
 	if err == nil {

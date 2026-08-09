@@ -48,6 +48,33 @@ func TestHTTP3Request(t *testing.T) {
 	client.CloseIdleConnections()
 }
 
+// TestHTTP3RequestWithTimeout 回归：客户端超时不得在读取响应体前取消流。
+func TestHTTP3RequestWithTimeout(t *testing.T) {
+	addr, pool := newH3Server(t)
+
+	client, err := httpx.New(
+		httpx.WithProtocol(httpx.ProtocolHTTP3),
+		httpx.WithTimeout(5*time.Second),
+		httpx.WithTLSClientConfig(&tls.Config{RootCAs: pool}),
+	)
+	if err != nil {
+		t.Fatalf("New 失败:%v", err)
+	}
+	resp, err := client.Get(context.Background(), "https://"+addr+"/hello")
+	if err != nil {
+		t.Fatalf("HTTP/3 请求失败:%v", err)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("带超时读取响应体失败:%v", err)
+	}
+	if resp.StatusCode != http.StatusOK || string(data) != "hello h3" {
+		t.Errorf("响应不符:status=%d body=%q", resp.StatusCode, data)
+	}
+	client.CloseIdleConnections()
+}
+
 func TestHTTP3WithoutTLSConfig(t *testing.T) {
 	addr, _ := newH3Server(t)
 

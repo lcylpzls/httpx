@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lcylpzls/errx"
@@ -67,8 +68,18 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	if effective > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, effective)
-		defer cancel()
 		req = req.WithContext(ctx)
+		resp, err := c.followRedirects(ctx, req)
+		if err != nil {
+			cancel()
+			return nil, wrapDoError(err)
+		}
+		// 超时覆盖完整请求生命周期：响应体关闭（或超时计时器触发）时
+		// 才取消上下文，避免 HTTP/2 / HTTP/3 在读取响应体前被本地取消。
+		if resp.Body != nil {
+			resp.Body = &timeoutBody{ReadCloser: resp.Body, cancel: cancel}
+		}
+		return resp, nil
 	}
 	// 并发限流:等待许可,受 context 取消约束。
 	if c.sem != nil {
@@ -84,6 +95,20 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		return nil, wrapDoError(err)
 	}
 	return resp, nil
+}
+
+// timeoutBody 延迟取消请求上下文：直到响应体关闭才释放超时资源。
+// 超时计时器到期仍会主动取消，符合“超时覆盖完整生命周期”的语义。
+type timeoutBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+	once   sync.Once
+}
+
+// Close 关闭响应体并取消请求上下文。
+func (b *timeoutBody) Close() error {
+	b.once.Do(b.cancel)
+	return b.ReadCloser.Close()
 }
 
 // CloseIdleConnections 释放连接池中的空闲连接,不中断正在使用的请求。
