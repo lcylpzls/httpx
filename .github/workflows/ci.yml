@@ -110,7 +110,7 @@ jobs:
         run: go test -run '^$' -fuzz '^FuzzIsRetryable$' -fuzztime=5s .
 
       - name: Fuzz backoff (5s)
-        run: go test -run '^$' -fuzz '^FuzzBackoff$' -fuzztime=5s .
+        run: go test -run '^$' -fuzz '^FuzzBackoff$' -fuzztime=10s .
 
       - name: Fuzz redirect (5s)
         run: go test -run '^$' -fuzz '^FuzzRedirect$' -fuzztime=5s .
