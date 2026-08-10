@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	testx "github.com/lcylpzls/testx"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -15,17 +16,15 @@ import (
 func TestXMLBody(t *testing.T) {
 	srv := newEchoServer(t)
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Post(context.Background(), srv.URL, nil,
 		WithXMLBody(struct {
 			XMLName struct{} `xml:"order"`
 			ID      int      `xml:"id"`
 		}{ID: 7}))
-	if err != nil {
-		t.Fatalf("XML 请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body := readRespBody(t, resp)
 	if !strings.Contains(body, "<order>") || !strings.Contains(body, "<id>7</id>") {
 		t.Errorf("XML 请求体不符:%s", body)
@@ -37,14 +36,12 @@ func TestXMLBody(t *testing.T) {
 
 func TestXMLBodyMarshalError(t *testing.T) {
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Post(context.Background(), "http://example.com", nil,
 		WithXMLBody(make(chan int)))
-	if err == nil {
-		t.Fatal("不可序列化 XML 应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeInvalidConfig {
 		t.Errorf("错误码 = %s,want %s", code, CodeInvalidConfig)
 	}
@@ -68,17 +65,15 @@ func TestMultipartFormData(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Post(context.Background(), srv.URL, nil,
 		WithMultipartFormData(
 			map[string]string{"name": "tom"},
 			map[string]FileField{"file": {Filename: "a.txt", Content: []byte("hello")}},
 		))
-	if err != nil {
-		t.Fatalf("multipart 请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body := readRespBody(t, resp)
 	if !strings.Contains(body, "multipart/form-data") ||
 		!strings.Contains(body, "name=tom") ||
@@ -97,14 +92,12 @@ func TestMultipartEmpty(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Post(context.Background(), srv.URL, nil,
 		WithMultipartFormData(nil, nil))
-	if err != nil {
-		t.Fatalf("空 multipart 请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body := readRespBody(t, resp)
 	if !strings.Contains(body, "multipart/form-data") || !strings.Contains(body, "boundary=") {
 		t.Errorf("空 multipart 响应不符:%s", body)
@@ -125,9 +118,8 @@ func TestMultipartBoundaryValid(t *testing.T) {
 func TestXMLBodyOverriddenByBytesBody(t *testing.T) {
 	srv := newEchoServer(t)
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	type xmlOrder struct {
 		XMLName struct{} `xml:"order"`
 		A       string   `xml:"a"`
@@ -136,9 +128,8 @@ func TestXMLBodyOverriddenByBytesBody(t *testing.T) {
 		WithXMLBody(xmlOrder{A: "x"}),
 		WithBytesBody([]byte("override")),
 	)
-	if err != nil {
-		t.Fatalf("请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body := readRespBody(t, resp)
 	if !strings.Contains(body, "body=override") {
 		t.Errorf("WithBytesBody 应覆盖 XML 体:%s", body)

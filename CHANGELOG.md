@@ -2,6 +2,18 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v1.1.0] - 2026-08-10
+
+### 变更
+
+- 家族测试底座接入：根包与 http3 子包测试改用语义等价的
+  testx 断言（含 Require* 致命断言）；
+- 测试依赖新增 `testx v1.2.0`，errx 同步升级 v1.4.0。
+
+### 质量
+
+- 根包语句覆盖率 100%；race / vet / staticcheck 全绿。
+
 ## [Unreleased]
 
 ### 规划

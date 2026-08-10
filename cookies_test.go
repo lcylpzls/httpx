@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	testx "github.com/lcylpzls/testx"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -22,32 +23,26 @@ func TestCookieSession(t *testing.T) {
 	defer srv.Close()
 
 	jar, err := cookiejar.New(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	client, err := New(WithCookieJar(jar))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	// 第一次请求:保存 Set-Cookie。
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
-	if gotCookie {
-		t.Fatal("首次请求不应携带 Cookie")
-	}
+	testx.RequireFalse(t, gotCookie)
+
 	// 第二次请求:自动注入。
 	gotCookie = false
 	resp, err = client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
-	if !gotCookie {
-		t.Error("第二次请求应自动携带会话 Cookie")
-	}
+	testx.True(t, gotCookie)
+
 }
 
 func TestCookieAcrossRedirects(t *testing.T) {
@@ -66,17 +61,14 @@ func TestCookieAcrossRedirects(t *testing.T) {
 	defer source.Close()
 
 	jar, err := cookiejar.New(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	client, err := New(WithCookieJar(jar))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), source.URL)
-	if err != nil {
-		t.Fatalf("重定向请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 }
 
@@ -92,31 +84,26 @@ func TestNoCookieJar(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	for i := 0; i < 2; i++ {
 		resp, err := client.Get(context.Background(), srv.URL)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testx.RequireNoError(t, err)
+
 		_ = resp.Body.Close()
 	}
-	if sawCookie {
-		t.Error("未配置 jar 时不应维护 Cookie")
-	}
+	testx.False(t, sawCookie)
+
 }
 
 func TestCookieJarWithScriptedResponse(t *testing.T) {
 	// 覆盖 storeCookies 对 resp.Request 为 nil 的防御分支。
 	jar, err := cookiejar.New(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	client, err := New(WithCookieJar(jar))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	client.rt = &scriptedRT{results: []roundTripResult{
 		{resp: &http.Response{
 			StatusCode: http.StatusOK,
@@ -127,25 +114,21 @@ func TestCookieJarWithScriptedResponse(t *testing.T) {
 		}},
 	}}
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Do(context.Background(), req)
-	if err != nil {
-		t.Fatalf("请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 }
 
 func TestInjectCookiesWithoutJar(t *testing.T) {
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	req, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	client.injectCookies(req) // 空操作,不应 panic
 	if req.Header.Get("Cookie") != "" {
 		t.Error("无 jar 不应注入 Cookie")

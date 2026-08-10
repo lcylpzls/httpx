@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	testx "github.com/lcylpzls/testx"
 	"io"
 	"net"
 	"net/http"
@@ -28,13 +29,11 @@ func TestRequestTimeout(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), srv.URL, WithRequestTimeout(80*time.Millisecond))
-	if err == nil {
-		t.Fatal("请求级超时应触发")
-	}
+	testx.RequireError(t, err)
+
 	if !IsTimeout(err) {
 		t.Errorf("应为超时错误:%v", err)
 	}
@@ -48,13 +47,11 @@ func TestRequestTimeoutStricterThanClient(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithTimeout(250 * time.Millisecond))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), srv.URL, WithRequestTimeout(80*time.Millisecond))
-	if err == nil {
-		t.Fatal("请求级超时更严格时应生效")
-	}
+	testx.RequireError(t, err)
+
 }
 
 func TestClientTimeoutStricterThanRequest(t *testing.T) {
@@ -65,13 +62,11 @@ func TestClientTimeoutStricterThanRequest(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithTimeout(80 * time.Millisecond))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), srv.URL, WithRequestTimeout(250*time.Millisecond))
-	if err == nil {
-		t.Fatal("客户端级超时更严格时应生效")
-	}
+	testx.RequireError(t, err)
+
 }
 
 func TestRequestTimeoutZeroIgnored(t *testing.T) {
@@ -80,13 +75,11 @@ func TestRequestTimeoutZeroIgnored(t *testing.T) {
 	}))
 	defer srv.Close()
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL, WithRequestTimeout(0))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 }
 
@@ -110,13 +103,11 @@ func TestRetryPolicyCustomRetryable(t *testing.T) {
 			return resp != nil && resp.StatusCode == http.StatusPaymentRequired
 		},
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatalf("自定义重试应成功:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	if hits.Load() != 2 {
 		t.Errorf("请求次数 = %d,want 2", hits.Load())
@@ -141,13 +132,11 @@ func TestRetryPolicyCustomAllowsPOST(t *testing.T) {
 			return resp != nil && resp.StatusCode >= 500
 		},
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Post(context.Background(), srv.URL, "x")
-	if err != nil {
-		t.Fatalf("自定义策略应允许 POST 重试:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	if hits.Load() != 2 {
 		t.Errorf("POST 重试次数 = %d,want 2", hits.Load())
@@ -169,13 +158,11 @@ func TestRetryPolicyCustomRejects(t *testing.T) {
 			return false
 		},
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	if hits.Load() != 1 {
 		t.Errorf("拒绝重试时请求次数 = %d,want 1", hits.Load())
@@ -193,9 +180,8 @@ func TestRetryPolicyInvalid(t *testing.T) {
 
 func TestShouldRetryNoPolicy(t *testing.T) {
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	if client.shouldRetry(nil, nil, errors.New("x")) {
 		t.Error("无重试策略不应重试")
 	}
@@ -229,9 +215,8 @@ func (f *fakeResolver) count() int {
 
 func TestNewDNSCacheDefaultTTL(t *testing.T) {
 	cache := NewDNSCache(0)
-	if cache.ttl != defaultDNSTTL {
-		t.Errorf("默认 TTL = %v,want %v", cache.ttl, defaultDNSTTL)
-	}
+	testx.Equal(t, cache.ttl, defaultDNSTTL)
+
 }
 
 func TestDNSCacheHitAndExpire(t *testing.T) {
@@ -325,16 +310,14 @@ func TestDialWithDNSCache(t *testing.T) {
 	cache2 := NewDNSCache(time.Hour)
 	cache2.resolver = &fakeResolver{err: errors.New("解析失败")}
 	_, err = dialWithDNSCache(ctx, dialer, cache2, "tcp", "no-such-host-httpx-test.invalid:9")
-	if err == nil {
-		t.Error("解析失败且系统解析也不存在时应返回错误")
-	}
+	testx.Error(t, err)
+
 	// 空解析结果回退系统解析
 	cacheEmpty := NewDNSCache(time.Hour)
 	cacheEmpty.resolver = &fakeResolver{ips: []net.IPAddr{}}
 	_, err = dialWithDNSCache(ctx, dialer, cacheEmpty, "tcp", "no-such-host-httpx-test.invalid:9")
-	if err == nil {
-		t.Error("空解析结果回退失败时应返回错误")
-	}
+	testx.Error(t, err)
+
 	// 非法地址
 	if _, err := dialWithDNSCache(ctx, dialer, cache, "tcp", "bad-addr"); err == nil {
 		t.Error("非法地址应返回错误")
@@ -348,9 +331,8 @@ func TestDialWithDNSCache(t *testing.T) {
 	cache3 := NewDNSCache(time.Hour)
 	cache3.resolver = &fakeResolver{ips: []net.IPAddr{{IP: net.ParseIP("127.0.0.2")}}}
 	conn, err = dialWithDNSCache(ctx, dialer, cache3, "tcp", net.JoinHostPort("localhost", port))
-	if err != nil {
-		t.Fatalf("回退系统解析应成功:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = conn.Close()
 }
 
@@ -365,14 +347,12 @@ func TestDNSCacheIntegration(t *testing.T) {
 	cache := NewDNSCache(time.Hour)
 	cache.resolver = resolver
 	client, err := New(WithDNSCache(cache))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	for i := 0; i < 2; i++ {
 		resp, err := client.Get(context.Background(), "http://test.local:"+port)
-		if err != nil {
-			t.Fatalf("第 %d 次请求失败:%v", i+1, err)
-		}
+		testx.RequireNoError(t, err)
+
 		_ = resp.Body.Close()
 	}
 	if resolver.count() != 1 {
@@ -399,9 +379,8 @@ func TestMaxConcurrency(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithMaxConcurrency(2))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
@@ -428,9 +407,8 @@ func TestMaxConcurrencyCancelWhileWaiting(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithMaxConcurrency(1))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	done := make(chan struct{})
 	go func() {
 		resp, err := client.Get(context.Background(), srv.URL)
@@ -449,9 +427,8 @@ func TestMaxConcurrencyCancelWhileWaiting(t *testing.T) {
 	_, err = client.Get(ctx, srv.URL)
 	close(release)
 	<-done
-	if err == nil {
-		t.Fatal("等待许可被取消应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if kind := errx.KindOf(err); kind != errx.KindCancelled {
 		t.Errorf("分类 = %s,want cancelled", kind)
 	}
@@ -470,9 +447,8 @@ func TestHTTP2HealthCheck(t *testing.T) {
 		WithProtocol(ProtocolHTTP2),
 		WithHTTP2HealthCheck(30*time.Second, 5*time.Second),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	tr := client.rt.(*http2.Transport)
 	if tr.ReadIdleTimeout != 30*time.Second || tr.PingTimeout != 5*time.Second {
 		t.Errorf("健康检查参数未生效:%+v", tr)
@@ -518,9 +494,8 @@ func TestReadStream(t *testing.T) {
 		received = append(received, chunk...)
 		return nil
 	}, 1<<20)
-	if err != nil {
-		t.Fatalf("流式读取失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	if len(received) != 40*1024+1 || chunks != 3 {
 		t.Errorf("读取结果不符:len=%d chunks=%d", len(received), chunks)
 	}
@@ -533,9 +508,8 @@ func TestReadStreamTooLarge(t *testing.T) {
 		chunks++
 		return nil
 	}, 3)
-	if err == nil {
-		t.Fatal("超限应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeBodyTooLarge {
 		t.Errorf("错误码 = %s,want %s", code, CodeBodyTooLarge)
 	}
@@ -548,23 +522,20 @@ func TestReadStreamCallbackError(t *testing.T) {
 	resp := &http.Response{Body: io.NopCloser(strings.NewReader("x"))}
 	cbErr := errors.New("回调终止")
 	err := ReadStream(resp, func([]byte) error { return cbErr }, 1024)
-	if err == nil {
-		t.Fatal("回调错误应返回")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeResponseFailed {
 		t.Errorf("错误码 = %s,want %s", code, CodeResponseFailed)
 	}
-	if !errors.Is(err, cbErr) {
-		t.Error("应保留回调原始错误")
-	}
+	testx.ErrorIs(t, err, cbErr)
+
 }
 
 func TestReadStreamReadError(t *testing.T) {
 	resp := &http.Response{Body: io.NopCloser(&errorReader{})}
 	err := ReadStream(resp, func([]byte) error { return nil }, 1024)
-	if err == nil {
-		t.Fatal("读取错误应返回")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeResponseFailed {
 		t.Errorf("错误码 = %s,want %s", code, CodeResponseFailed)
 	}

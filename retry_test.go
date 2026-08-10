@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	testx "github.com/lcylpzls/testx"
 	"io"
 	"math"
 	"net"
@@ -155,9 +156,8 @@ func TestRetryAfter(t *testing.T) {
 				}
 				return
 			}
-			if got != tc.want {
-				t.Errorf("retryAfter = %v,want %v", got, tc.want)
-			}
+			testx.Equal(t, got, tc.want)
+
 		})
 	}
 }
@@ -174,17 +174,14 @@ func TestRetrySuccessAfter503(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithRetry(3, FixedBackoff(time.Millisecond)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatalf("重试后应成功:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("状态码 = %d", resp.StatusCode)
-	}
+	testx.Equal(t, resp.StatusCode, http.StatusOK)
+
 	if hits.Load() != 3 {
 		t.Errorf("请求次数 = %d,want 3", hits.Load())
 	}
@@ -192,20 +189,17 @@ func TestRetrySuccessAfter503(t *testing.T) {
 
 func TestRetryNetworkErrorExhausted(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	addr := ln.Addr().String()
 	_ = ln.Close()
 
 	client, err := New(WithRetry(3, FixedBackoff(time.Millisecond)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), "http://"+addr)
-	if err == nil {
-		t.Fatal("应返回重试耗尽错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeRetryExhausted {
 		t.Errorf("错误码 = %s,want %s", code, CodeRetryExhausted)
 	}
@@ -220,17 +214,14 @@ func TestRetryStatusExhausted(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithRetry(3, FixedBackoff(time.Millisecond)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatalf("状态码场景应返回最终响应而非错误:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusServiceUnavailable {
-		t.Errorf("状态码 = %d", resp.StatusCode)
-	}
+	testx.Equal(t, resp.StatusCode, http.StatusServiceUnavailable)
+
 	if hits.Load() != 3 {
 		t.Errorf("请求次数 = %d,want 3", hits.Load())
 	}
@@ -245,17 +236,14 @@ func TestRetryNonIdempotent(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithRetry(3, FixedBackoff(time.Millisecond)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Post(context.Background(), srv.URL, "x")
-	if err != nil {
-		t.Fatalf("POST 不应报错,返回最终响应:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Errorf("状态码 = %d", resp.StatusCode)
-	}
+	testx.Equal(t, resp.StatusCode, http.StatusInternalServerError)
+
 	if hits.Load() != 1 {
 		t.Errorf("非幂等请求不应重试:次数 = %d", hits.Load())
 	}
@@ -268,19 +256,16 @@ func TestRetryBodyUnreadable(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithRetry(2, FixedBackoff(time.Millisecond)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	// 手动 Body:GetBody 为空且不可 Seek,重试时应报 HTX_BODY_UNREADABLE。
 	req.Body = io.NopCloser(strings.NewReader("x"))
 	_, err = client.Do(context.Background(), req)
-	if err == nil {
-		t.Fatal("不可重读请求体应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeBodyUnreadable {
 		t.Errorf("错误码 = %s,want %s", code, CodeBodyUnreadable)
 	}
@@ -301,22 +286,18 @@ func TestRetryBodyReplayable(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithRetry(2, FixedBackoff(time.Millisecond)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	req, err := http.NewRequestWithContext(
 		context.Background(), http.MethodPut, srv.URL, bytes.NewReader([]byte("payload")))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Do(context.Background(), req)
-	if err != nil {
-		t.Fatalf("可重读请求体应重试成功:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("状态码 = %d", resp.StatusCode)
-	}
+	testx.Equal(t, resp.StatusCode, http.StatusOK)
+
 	if len(bodies) != 2 || bodies[0] != "payload" || bodies[1] != "payload" {
 		t.Errorf("重试请求体不符:%v", bodies)
 	}
@@ -329,15 +310,13 @@ func TestRetryCancelDuringBackoff(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithRetry(3, FixedBackoff(time.Second)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	_, err = client.Get(ctx, srv.URL)
-	if err == nil {
-		t.Fatal("等待退避被取消应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if kind := errx.KindOf(err); kind != errx.KindCancelled {
 		t.Errorf("分类 = %s,want cancelled;err=%v", kind, err)
 	}
@@ -356,17 +335,14 @@ func TestRetryAfterHeaderRespected(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithRetry(2, FixedBackoff(time.Second)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatalf("Retry-After: 0 应跳过退避立即重试:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("状态码 = %d", resp.StatusCode)
-	}
+	testx.Equal(t, resp.StatusCode, http.StatusOK)
+
 }
 
 func TestRetryDisabledByDefault(t *testing.T) {
@@ -378,13 +354,11 @@ func TestRetryDisabledByDefault(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
 	if hits.Load() != 1 {
 		t.Errorf("默认不应重试:次数 = %d", hits.Load())
@@ -396,15 +370,13 @@ func TestDoRetryNonRetryableError(t *testing.T) {
 		{err: errx.New(errx.KindBusiness, "BIZ", "业务错误")},
 	}}
 	client, err := New(WithRetry(3, FixedBackoff(time.Millisecond)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	client.rt = rt
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
 	_, err = client.Do(context.Background(), req)
-	if err == nil {
-		t.Fatal("业务错误应直接返回")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != "BIZ" {
 		t.Errorf("错误码 = %s,want BIZ", code)
 	}
@@ -418,15 +390,13 @@ func TestDoRetryNonIdempotentError(t *testing.T) {
 		{err: fakeNetError{timeout: true}},
 	}}
 	client, err := New(WithRetry(3, FixedBackoff(time.Millisecond)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	client.rt = rt
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "http://example.com", nil)
 	_, err = client.Do(context.Background(), req)
-	if err == nil {
-		t.Fatal("POST 网络错误应直接返回")
-	}
+	testx.RequireError(t, err)
+
 	if rt.calls != 1 {
 		t.Errorf("非幂等方法不应重试:次数 = %d", rt.calls)
 	}
@@ -438,16 +408,14 @@ func TestDoRetryReplayableBodyAcrossAttempts(t *testing.T) {
 		{resp: statusResponse(http.StatusOK)},
 	}}
 	client, err := New(WithRetry(2, FixedBackoff(time.Millisecond)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	client.rt = rt
 	req, _ := http.NewRequestWithContext(
 		context.Background(), http.MethodPut, "http://example.com", bytes.NewReader([]byte("p")))
 	resp, err := client.Do(context.Background(), req)
-	if err != nil {
-		t.Fatalf("重试应成功:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || rt.calls != 2 {
 		t.Errorf("重试结果不符:status=%d calls=%d", resp.StatusCode, rt.calls)
@@ -501,9 +469,8 @@ func TestCloneRequestForRetry(t *testing.T) {
 		t.Fatal("bytes.Reader 应自动生成 GetBody")
 	}
 	clone, err = cloneRequestForRetry(req)
-	if err != nil {
-		t.Fatalf("GetBody 克隆失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	data, _ := io.ReadAll(clone.Body)
 	if string(data) != "x" {
 		t.Errorf("克隆请求体不符:%q", data)
@@ -523,9 +490,8 @@ func TestCloneRequestForRetry(t *testing.T) {
 	req.Body = seekReadCloser{rs}
 	req.GetBody = nil
 	clone, err = cloneRequestForRetry(req)
-	if err != nil {
-		t.Fatalf("ReadSeeker 克隆失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	data, _ = io.ReadAll(clone.Body)
 	if string(data) != "y" {
 		t.Errorf("ReadSeeker 克隆请求体不符:%q", data)
@@ -542,9 +508,8 @@ func TestCloneRequestForRetry(t *testing.T) {
 	req.Body = io.NopCloser(strings.NewReader("z"))
 	req.GetBody = nil
 	_, err = cloneRequestForRetry(req)
-	if err == nil {
-		t.Fatal("不可重读应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeBodyUnreadable {
 		t.Errorf("错误码 = %s,want %s", code, CodeBodyUnreadable)
 	}

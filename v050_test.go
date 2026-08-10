@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	testx "github.com/lcylpzls/testx"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,9 +15,8 @@ import (
 )
 
 func TestVersion(t *testing.T) {
-	if Version != "v1.0.1" {
-		t.Errorf("Version = %s,want v1.0.1", Version)
-	}
+	testx.Equal(t, Version, "v1.1.0")
+
 }
 
 // ---------- EnsureStatus ----------
@@ -32,9 +32,8 @@ func TestEnsureStatusMatched(t *testing.T) {
 		t.Fatalf("命中状态码应返回 nil:%v", err)
 	}
 	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	if string(data) != "ok" {
 		t.Errorf("命中时不应关闭 Body:%q", data)
 	}
@@ -61,9 +60,8 @@ func TestEnsureStatusMismatch(t *testing.T) {
 		Body:       body,
 	}
 	err := EnsureStatus(resp, http.StatusOK)
-	if err == nil {
-		t.Fatal("未命中应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeUnexpectedStatus {
 		t.Errorf("错误码 = %s,want %s", code, CodeUnexpectedStatus)
 	}
@@ -71,9 +69,8 @@ func TestEnsureStatusMismatch(t *testing.T) {
 		t.Error("未命中时 Body 应被关闭")
 	}
 	e, ok := errx.As(err)
-	if !ok {
-		t.Fatal("应为结构化错误")
-	}
+	testx.RequireTrue(t, ok)
+
 	var hasStatus, hasBody bool
 	for _, f := range e.Fields() {
 		switch f.Key {
@@ -97,9 +94,8 @@ func TestEnsureStatusNilResponse(t *testing.T) {
 func TestEnsureStatusNilBody(t *testing.T) {
 	resp := &http.Response{StatusCode: http.StatusTeapot}
 	err := EnsureStatus(resp, http.StatusOK)
-	if err == nil {
-		t.Fatal("未命中应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeUnexpectedStatus {
 		t.Errorf("错误码 = %s", code)
 	}
@@ -111,13 +107,11 @@ func TestEnsureStatusSummaryTruncated(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader(strings.Repeat("x", 4096))),
 	}
 	err := EnsureStatus(resp, http.StatusOK)
-	if err == nil {
-		t.Fatal("未命中应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	e, ok := errx.As(err)
-	if !ok {
-		t.Fatal("应为结构化错误")
-	}
+	testx.RequireTrue(t, ok)
+
 	for _, f := range e.Fields() {
 		if f.Key == "body" {
 			if len(f.Value.(string)) > statusSummaryLimit {
@@ -149,20 +143,17 @@ func TestMultipartStreamingFile(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Post(context.Background(), srv.URL, nil,
 		WithMultipartFormData(nil, map[string]FileField{
 			"file": {Filename: "stream.bin", Reader: strings.NewReader("streamed-content")},
 		}))
-	if err != nil {
-		t.Fatalf("流式上传失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body := readRespBody(t, resp)
-	if body != "streamed-content" {
-		t.Errorf("流式内容 = %q", body)
-	}
+	testx.Equal(t, body, "streamed-content")
+
 }
 
 func TestMultipartReaderPrecedence(t *testing.T) {
@@ -196,14 +187,12 @@ func TestRetryMaxBackoffCapsRetryAfter(t *testing.T) {
 		Backoff:     FixedBackoff(time.Millisecond),
 		MaxBackoff:  10 * time.Millisecond,
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	start := time.Now()
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatalf("请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	if elapsed := time.Since(start); elapsed > 2*time.Second {
 		t.Errorf("MaxBackoff 未截断 Retry-After:耗时 %v", elapsed)
@@ -227,9 +216,8 @@ func TestRetryMaxBackoffAllowsLongerBackoff(t *testing.T) {
 		Backoff:     FixedBackoff(time.Millisecond),
 		MaxBackoff:  time.Second,
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	if client.cfg.retry == nil || client.cfg.retry.maxBackoff != time.Second {
 		t.Error("MaxBackoff 配置未生效")
 	}

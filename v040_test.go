@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	testx "github.com/lcylpzls/testx"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,9 +18,8 @@ import (
 
 func TestMaxResponseHeaderBytesDefault(t *testing.T) {
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	tr := client.rt.(*http.Transport)
 	if tr.MaxResponseHeaderBytes != defaultMaxResponseHeaderBytes {
 		t.Errorf("默认响应头上限 = %d,want %d", tr.MaxResponseHeaderBytes, defaultMaxResponseHeaderBytes)
@@ -28,17 +28,15 @@ func TestMaxResponseHeaderBytesDefault(t *testing.T) {
 
 func TestMaxResponseHeaderBytesCustomAndZero(t *testing.T) {
 	client, err := New(WithMaxResponseHeaderBytes(4096))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	if tr := client.rt.(*http.Transport); tr.MaxResponseHeaderBytes != 4096 {
 		t.Errorf("自定义响应头上限 = %d,want 4096", tr.MaxResponseHeaderBytes)
 	}
 	// 0 表示回退默认
 	client, err = New(WithMaxResponseHeaderBytes(0))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	if tr := client.rt.(*http.Transport); tr.MaxResponseHeaderBytes != defaultMaxResponseHeaderBytes {
 		t.Errorf("0 应回退默认:%d", tr.MaxResponseHeaderBytes)
 	}
@@ -55,13 +53,11 @@ func TestMaxResponseHeaderBytesBehavior(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithMaxResponseHeaderBytes(1024))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), srv.URL)
-	if err == nil {
-		t.Fatal("响应头超限应返回错误")
-	}
+	testx.RequireError(t, err)
+
 }
 
 func TestMaxConnsPerHostAndExpectContinue(t *testing.T) {
@@ -69,9 +65,8 @@ func TestMaxConnsPerHostAndExpectContinue(t *testing.T) {
 		WithMaxConnsPerHost(3),
 		WithExpectContinueTimeout(500*time.Millisecond),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	tr := client.rt.(*http.Transport)
 	if tr.MaxConnsPerHost != 3 || tr.ExpectContinueTimeout != 500*time.Millisecond {
 		t.Errorf("连接选项未生效:%+v", tr)
@@ -86,9 +81,8 @@ func TestMaxConnsPerHostAndExpectContinue(t *testing.T) {
 
 func TestHTTP2HeaderListSize(t *testing.T) {
 	client, err := New(WithProtocol(ProtocolHTTP2), WithMaxResponseHeaderBytes(8192))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	tr := client.rt.(*http2.Transport)
 	if tr.MaxHeaderListSize != 8192 {
 		t.Errorf("H2 响应头上限 = %d,want 8192", tr.MaxHeaderListSize)
@@ -120,13 +114,11 @@ func TestRetryTotalTimeout(t *testing.T) {
 		Backoff:      FixedBackoff(time.Second),
 		TotalTimeout: 80 * time.Millisecond,
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), srv.URL)
-	if err == nil {
-		t.Fatal("重试总时长应触发")
-	}
+	testx.RequireError(t, err)
+
 	if kind := errx.KindOf(err); kind != errx.KindCancelled {
 		t.Errorf("分类 = %s,want cancelled;err=%v", kind, err)
 	}
@@ -148,13 +140,11 @@ func TestRetryTotalTimeoutEnough(t *testing.T) {
 		Backoff:      FixedBackoff(10 * time.Millisecond),
 		TotalTimeout: 2 * time.Second,
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatalf("总时长充足时应成功:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 }
 
@@ -171,17 +161,14 @@ func TestRetryTotalTimeoutInvalid(t *testing.T) {
 func TestRetryExhaustedFields(t *testing.T) {
 	ln := newClosedListener(t)
 	client, err := New(WithRetry(2, FixedBackoff(time.Millisecond)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), "http://"+ln)
-	if err == nil {
-		t.Fatal("应返回重试耗尽")
-	}
+	testx.RequireError(t, err)
+
 	e, ok := errx.As(err)
-	if !ok {
-		t.Fatalf("应为结构化错误:%v", err)
-	}
+	testx.RequireTrue(t, ok)
+
 	fields := e.Fields()
 	var hasMethod, hasURL bool
 	for _, f := range fields {
@@ -208,17 +195,14 @@ func TestRequestID(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL, WithRequestID("req-123"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
-	if gotID != "req-123" {
-		t.Errorf("X-Request-ID = %q,want req-123", gotID)
-	}
+	testx.Equal(t, gotID, "req-123")
+
 }
 
 func TestRequestIDEmptyIgnored(t *testing.T) {
@@ -230,17 +214,14 @@ func TestRequestIDEmptyIgnored(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL, WithRequestID(""))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
-	if gotID != "" {
-		t.Errorf("空请求 ID 不应写入:%q", gotID)
-	}
+	testx.Equal(t, gotID, "")
+
 }
 
 func TestObserveRequestIDField(t *testing.T) {
@@ -251,13 +232,11 @@ func TestObserveRequestIDField(t *testing.T) {
 
 	logger := &fakeLogger{}
 	client, err := New(WithLogger(logger), WithLogRequest(true))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL, WithRequestID("req-abc"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	if !logger.hasDebug("HTTP 请求") {
 		t.Error("应输出请求日志(含 request_id 字段)")

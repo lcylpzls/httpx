@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	testx "github.com/lcylpzls/testx"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -23,20 +24,17 @@ func newBenchServer(b *testing.B) *httptest.Server {
 func BenchmarkDoReuse(b *testing.B) {
 	srv := newBenchServer(b)
 	client, err := New()
-	if err != nil {
-		b.Fatal(err)
-	}
+	testx.RequireNoError(b, err)
+
 	ctx := context.Background()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
-	if err != nil {
-		b.Fatal(err)
-	}
+	testx.RequireNoError(b, err)
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		resp, err := client.Do(ctx, req)
-		if err != nil {
-			b.Fatal(err)
-		}
+		testx.RequireNoError(b, err)
+
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 	}
@@ -48,15 +46,13 @@ func BenchmarkNetHTTPReuse(b *testing.B) {
 	client := &http.Client{}
 	ctx := context.Background()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
-	if err != nil {
-		b.Fatal(err)
-	}
+	testx.RequireNoError(b, err)
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		resp, err := client.Do(req)
-		if err != nil {
-			b.Fatal(err)
-		}
+		testx.RequireNoError(b, err)
+
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 	}
@@ -66,9 +62,8 @@ func BenchmarkNetHTTPReuse(b *testing.B) {
 func BenchmarkJSON(b *testing.B) {
 	srv := newBenchServer(b)
 	client, err := New()
-	if err != nil {
-		b.Fatal(err)
-	}
+	testx.RequireNoError(b, err)
+
 	ctx := context.Background()
 	var out struct {
 		ID   int    `json:"id"`
@@ -77,9 +72,8 @@ func BenchmarkJSON(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		resp, err := client.Get(ctx, srv.URL)
-		if err != nil {
-			b.Fatal(err)
-		}
+		testx.RequireNoError(b, err)
+
 		if err := JSON(resp, &out); err != nil {
 			b.Fatal(err)
 		}
@@ -90,16 +84,14 @@ func BenchmarkJSON(b *testing.B) {
 func BenchmarkReadString(b *testing.B) {
 	srv := newBenchServer(b)
 	client, err := New()
-	if err != nil {
-		b.Fatal(err)
-	}
+	testx.RequireNoError(b, err)
+
 	ctx := context.Background()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		resp, err := client.Get(ctx, srv.URL)
-		if err != nil {
-			b.Fatal(err)
-		}
+		testx.RequireNoError(b, err)
+
 		if _, err := ReadString(resp, 1024); err != nil {
 			b.Fatal(err)
 		}
@@ -109,9 +101,8 @@ func BenchmarkReadString(b *testing.B) {
 // BenchmarkBuildRequest 基准:请求构造与选项合并。
 func BenchmarkBuildRequest(b *testing.B) {
 	client, err := New()
-	if err != nil {
-		b.Fatal(err)
-	}
+	testx.RequireNoError(b, err)
+
 	opts := []RequestOption{
 		WithHeader("X-Test", "v"),
 		WithQuery("q", "1"),

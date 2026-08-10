@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	testx "github.com/lcylpzls/testx"
 	"io"
 	"net"
 	"net/http"
@@ -21,9 +22,8 @@ import (
 func TestNewSuccess(t *testing.T) {
 	for _, p := range []Protocol{ProtocolAuto, ProtocolHTTP1, ProtocolHTTP2} {
 		client, err := New(WithProtocol(p))
-		if err != nil {
-			t.Fatalf("%v:New 失败:%v", p, err)
-		}
+		testx.RequireNoError(t, err)
+
 		if client.cfg.protocol != p || client.rt == nil {
 			t.Errorf("%v:客户端配置不符", p)
 		}
@@ -55,20 +55,15 @@ func TestWithRoundTripperWrapper(t *testing.T) {
 		inner = rt
 		return &wrapRT{inner: rt}
 	}))
-	if err != nil {
-		t.Fatalf("New 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatalf("请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("包装器未生效,状态码=%d", resp.StatusCode)
-	}
-	if inner == nil {
-		t.Fatal("包装器应收到内部 RoundTripper")
-	}
+	testx.RequireEqual(t, resp.StatusCode, http.StatusOK)
+
+	testx.RequireNotNil(t, inner)
 
 	// nil 包装器被忽略。
 	client2, err := New(WithRoundTripperWrapper(nil))
@@ -87,18 +82,15 @@ func (nilBodyRT) RoundTrip(*http.Request) (*http.Response, error) {
 // TestTimeoutNilBody 覆盖超时响应体为空的取消分支。
 func TestTimeoutNilBody(t *testing.T) {
 	client, err := New(WithTimeout(time.Second))
-	if err != nil {
-		t.Fatalf("New 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	client.rt = nilBodyRT{}
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Do(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Do 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	if resp.Body != nil {
 		t.Fatal("应保持 nil Body")
 	}
@@ -118,18 +110,15 @@ func TestHTTP2TimeoutBodyRead(t *testing.T) {
 		WithTimeout(5*time.Second),
 		WithTLSClientConfig(&tls.Config{RootCAs: rootCAs}),
 	)
-	if err != nil {
-		t.Fatalf("New 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatalf("HTTP/2 请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("带超时读取响应体失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	if resp.ProtoMajor != 2 || string(data) != "hello h2" {
 		t.Errorf("响应不符:proto=%s body=%q", resp.Proto, data)
 	}
@@ -137,9 +126,8 @@ func TestHTTP2TimeoutBodyRead(t *testing.T) {
 
 func TestNewHTTP3Unregistered(t *testing.T) {
 	_, err := New(WithProtocol(ProtocolHTTP3))
-	if err == nil {
-		t.Fatal("未注册 HTTP/3 应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeUnsupportedProtocol {
 		t.Errorf("错误码 = %s,want %s", code, CodeUnsupportedProtocol)
 	}
@@ -147,9 +135,8 @@ func TestNewHTTP3Unregistered(t *testing.T) {
 
 func TestNewInvalidProtocol(t *testing.T) {
 	_, err := New(WithProtocol(Protocol(99)))
-	if err == nil {
-		t.Fatal("非法协议应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeInvalidConfig {
 		t.Errorf("错误码 = %s,want %s", code, CodeInvalidConfig)
 	}
@@ -157,35 +144,29 @@ func TestNewInvalidProtocol(t *testing.T) {
 
 func TestRegisterHTTP3(t *testing.T) {
 	RegisterHTTP3(func(cfg ProtocolConfig) (http.RoundTripper, error) {
-		if cfg.DialTimeout != defaultDialTimeout {
-			t.Errorf("DialTimeout 未传递:got %v,want %v", cfg.DialTimeout, defaultDialTimeout)
-		}
+		testx.Equal(t, cfg.DialTimeout, defaultDialTimeout)
+
 		return &fakeRoundTripper{status: http.StatusCreated}, nil
 	})
 	defer RegisterHTTP3(nil)
 
 	client, err := New(WithProtocol(ProtocolHTTP3))
-	if err != nil {
-		t.Fatalf("注册后 New 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Do(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Do 失败:%v", err)
-	}
-	if resp.StatusCode != http.StatusCreated {
-		t.Errorf("状态码 = %d,want %d", resp.StatusCode, http.StatusCreated)
-	}
+	testx.RequireNoError(t, err)
+
+	testx.Equal(t, resp.StatusCode, http.StatusCreated)
+
 }
 
 func TestCloseIdleConnections(t *testing.T) {
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	// 标准库 Transport 实现 CloseIdleConnections
 	client.CloseIdleConnections()
 	// io.Closer 分支(如 HTTP/3 Transport)
@@ -209,23 +190,19 @@ func (c *closerRT) Close() error {
 
 func TestNewNilOptions(t *testing.T) {
 	client, err := New(nil)
-	if err != nil {
-		t.Fatalf("nil 选项应被忽略:%v", err)
-	}
-	if client.cfg.protocol != ProtocolAuto {
-		t.Error("nil 选项不应改变默认配置")
-	}
+	testx.RequireNoError(t, err)
+
+	testx.Equal(t, client.cfg.protocol, ProtocolAuto)
+
 }
 
 func TestDoNilRequest(t *testing.T) {
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Do(context.Background(), nil)
-	if err == nil {
-		t.Fatal("nil 请求应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeInvalidConfig {
 		t.Errorf("错误码 = %s,want %s", code, CodeInvalidConfig)
 	}
@@ -234,30 +211,25 @@ func TestDoNilRequest(t *testing.T) {
 func TestDoNilContext(t *testing.T) {
 	srv := newEchoServer(t)
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	//lint:ignore SA1012 有意覆盖 nil context 防护逻辑
 	resp, err := client.Do(nil, req)
-	if err != nil {
-		t.Fatalf("nil context 应视为 Background:%v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("状态码 = %d", resp.StatusCode)
-	}
+	testx.RequireNoError(t, err)
+
+	testx.Equal(t, resp.StatusCode, http.StatusOK)
+
 	_ = resp.Body.Close()
 }
 
 func TestGetPostRequest(t *testing.T) {
 	srv := newEchoServer(t)
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	ctx := context.Background()
 
 	// Get:header + query 合并
@@ -266,9 +238,8 @@ func TestGetPostRequest(t *testing.T) {
 		WithQuery("b", "2"),
 		WithQuery("c", "3"),
 	)
-	if err != nil {
-		t.Fatalf("Get 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body := readRespBody(t, resp)
 	if !strings.Contains(body, "GET") || !strings.Contains(body, "a=1&b=2&c=3") || !strings.Contains(body, "X-Test: v") {
 		t.Errorf("Get 请求不符合预期:%s", body)
@@ -276,9 +247,8 @@ func TestGetPostRequest(t *testing.T) {
 
 	// Post:string body
 	resp, err = client.Post(ctx, srv.URL, "plain")
-	if err != nil {
-		t.Fatalf("Post string 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body = readRespBody(t, resp)
 	if !strings.Contains(body, "POST") || !strings.Contains(body, "body=plain") {
 		t.Errorf("Post string 请求不符合预期:%s", body)
@@ -286,9 +256,8 @@ func TestGetPostRequest(t *testing.T) {
 
 	// Post:bytes body
 	resp, err = client.Post(ctx, srv.URL, []byte("bytes"))
-	if err != nil {
-		t.Fatalf("Post bytes 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body = readRespBody(t, resp)
 	if !strings.Contains(body, "body=bytes") {
 		t.Errorf("Post bytes 请求不符合预期:%s", body)
@@ -296,9 +265,8 @@ func TestGetPostRequest(t *testing.T) {
 
 	// Post:url.Values
 	resp, err = client.Post(ctx, srv.URL, url.Values{"f": []string{"x"}})
-	if err != nil {
-		t.Fatalf("Post form 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body = readRespBody(t, resp)
 	if !strings.Contains(body, "body=f=x") || !strings.Contains(body, "form-urlencoded") {
 		t.Errorf("Post form 请求不符合预期:%s", body)
@@ -306,9 +274,8 @@ func TestGetPostRequest(t *testing.T) {
 
 	// Post:自定义对象 → JSON
 	resp, err = client.Post(ctx, srv.URL, map[string]int{"n": 1})
-	if err != nil {
-		t.Fatalf("Post JSON 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body = readRespBody(t, resp)
 	if !strings.Contains(body, `body={"n":1}`) || !strings.Contains(body, "application/json") {
 		t.Errorf("Post JSON 请求不符合预期:%s", body)
@@ -320,9 +287,8 @@ func TestGetPostRequest(t *testing.T) {
 		WithBasicAuth("user", "pass"),
 		WithUserAgent("httpx-test"),
 	)
-	if err != nil {
-		t.Fatalf("Request 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body = readRespBody(t, resp)
 	if !strings.Contains(body, "PUT") ||
 		!strings.Contains(body, `body={"k":"v"}`) ||
@@ -335,9 +301,8 @@ func TestGetPostRequest(t *testing.T) {
 	resp, err = client.Request(ctx, http.MethodDelete, srv.URL,
 		WithBearer("tok"),
 	)
-	if err != nil {
-		t.Fatalf("Request Bearer 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body = readRespBody(t, resp)
 	if !strings.Contains(body, "DELETE") || !strings.Contains(body, "Bearer tok") {
 		t.Errorf("Request Bearer 不符合预期:%s", body)
@@ -347,16 +312,14 @@ func TestGetPostRequest(t *testing.T) {
 func TestRequestWithBytesBodyOverridesJSON(t *testing.T) {
 	srv := newEchoServer(t)
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Post(context.Background(), srv.URL, nil,
 		WithJSONBody(map[string]int{"n": 1}),
 		WithBytesBody([]byte("override")),
 	)
-	if err != nil {
-		t.Fatalf("请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body := readRespBody(t, resp)
 	if !strings.Contains(body, "body=override") {
 		t.Errorf("WithBytesBody 应覆盖 JSON 体:%s", body)
@@ -365,13 +328,11 @@ func TestRequestWithBytesBodyOverridesJSON(t *testing.T) {
 
 func TestBuildRequestInvalidURL(t *testing.T) {
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), "://bad-url")
-	if err == nil {
-		t.Fatal("非法 URL 应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeInvalidConfig {
 		t.Errorf("错误码 = %s,want %s", code, CodeInvalidConfig)
 	}
@@ -379,13 +340,11 @@ func TestBuildRequestInvalidURL(t *testing.T) {
 
 func TestRequestInvalidMethod(t *testing.T) {
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Request(context.Background(), "BAD METHOD", "http://example.com")
-	if err == nil {
-		t.Fatal("非法方法应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeInvalidConfig {
 		t.Errorf("错误码 = %s,want %s", code, CodeInvalidConfig)
 	}
@@ -394,26 +353,22 @@ func TestRequestInvalidMethod(t *testing.T) {
 func TestGetNilContext(t *testing.T) {
 	srv := newEchoServer(t)
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	//lint:ignore SA1012 有意覆盖 nil context 防护逻辑
 	resp, err := client.Get(nil, srv.URL)
-	if err != nil {
-		t.Fatalf("Get nil context 应视为 Background:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 }
 
 func TestPostUnserializableBody(t *testing.T) {
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Post(context.Background(), "http://example.com", make(chan int))
-	if err == nil {
-		t.Fatal("不可序列化 body 应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeInvalidConfig {
 		t.Errorf("错误码 = %s,want %s", code, CodeInvalidConfig)
 	}
@@ -422,14 +377,12 @@ func TestPostUnserializableBody(t *testing.T) {
 func TestRequestWithFormBody(t *testing.T) {
 	srv := newEchoServer(t)
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Request(context.Background(), http.MethodPost, srv.URL,
 		WithFormBody(url.Values{"f": []string{"x"}}))
-	if err != nil {
-		t.Fatalf("WithFormBody 请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	body := readRespBody(t, resp)
 	if !strings.Contains(body, "body=f=x") || !strings.Contains(body, "form-urlencoded") {
 		t.Errorf("WithFormBody 请求不符合预期:%s", body)
@@ -438,14 +391,12 @@ func TestRequestWithFormBody(t *testing.T) {
 
 func TestMarshalJSONBodyError(t *testing.T) {
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Post(context.Background(), "http://example.com", nil,
 		WithJSONBody(map[any]any{make(chan int): 1}))
-	if err == nil {
-		t.Fatal("不可序列化请求体应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeInvalidConfig {
 		t.Errorf("错误码 = %s,want %s", code, CodeInvalidConfig)
 	}
@@ -459,13 +410,11 @@ func TestDoWithTimeout(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithTimeout(80 * time.Millisecond))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), srv.URL)
-	if err == nil {
-		t.Fatal("整体超时应触发")
-	}
+	testx.RequireError(t, err)
+
 	if !IsTimeout(err) {
 		t.Errorf("应为超时错误:%v", err)
 	}
@@ -479,13 +428,11 @@ func TestResponseHeaderTimeout(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithResponseHeaderTimeout(80 * time.Millisecond))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), srv.URL)
-	if err == nil {
-		t.Fatal("响应头超时应触发")
-	}
+	testx.RequireError(t, err)
+
 }
 
 func TestContextCancel(t *testing.T) {
@@ -496,16 +443,14 @@ func TestContextCancel(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	time.AfterFunc(50*time.Millisecond, cancel)
 	defer cancel()
 	_, err = client.Get(ctx, srv.URL)
-	if err == nil {
-		t.Fatal("取消应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if IsRetryable(err) {
 		t.Errorf("取消不应可重试:%v", err)
 	}
@@ -513,20 +458,17 @@ func TestContextCancel(t *testing.T) {
 
 func TestDialFailed(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	addr := ln.Addr().String()
 	_ = ln.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), "http://"+addr)
-	if err == nil {
-		t.Fatal("连接失败应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeDialFailed {
 		t.Errorf("错误码 = %s,want %s;err=%v", code, CodeDialFailed, err)
 	}
@@ -539,13 +481,11 @@ func TestTLSFailed(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), "https://"+srv.Listener.Addr().String())
-	if err == nil {
-		t.Fatal("TLS 失败应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeTLSFailed {
 		t.Errorf("错误码 = %s,want %s;err=%v", code, CodeTLSFailed, err)
 	}
@@ -573,9 +513,8 @@ func TestWrapDoError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := wrapDoError(tc.err)
 			if tc.err == nil {
-				if got != nil {
-					t.Fatalf("nil 应返回 nil,got %v", got)
-				}
+				testx.RequireNil(t, got)
+
 				return
 			}
 			if code, ok := errx.CodeOf(got); !ok || code != tc.code {
@@ -609,9 +548,8 @@ func TestIsTLSError(t *testing.T) {
 func TestConcurrentRequests(t *testing.T) {
 	srv := newEchoServer(t)
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	var done atomic.Int64
 	for i := 0; i < 16; i++ {
 		go func() {
@@ -658,8 +596,7 @@ func readRespBody(t *testing.T, resp *http.Response) string {
 	t.Helper()
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("读取响应失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	return string(data)
 }

@@ -3,6 +3,7 @@ package httpx
 import (
 	"context"
 	"errors"
+	testx "github.com/lcylpzls/testx"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -29,13 +30,11 @@ func TestHooksOnRequestAndResponse(t *testing.T) {
 			return nil
 		},
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	if onRequest.Load() != 1 || onResponse.Load() != 1 {
 		t.Errorf("钩子调用次数不符:onRequest=%d onResponse=%d", onRequest.Load(), onResponse.Load())
@@ -48,17 +47,14 @@ func TestHooksOnRequestError(t *testing.T) {
 			return errors.New("禁止请求")
 		},
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Do(context.Background(), req)
-	if err == nil {
-		t.Fatal("OnRequest 错误应终止请求")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeRequestFailed {
 		t.Errorf("错误码 = %s,want %s", code, CodeRequestFailed)
 	}
@@ -75,13 +71,11 @@ func TestHooksOnResponseError(t *testing.T) {
 			return errors.New("响应不合规")
 		},
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), srv.URL)
-	if err == nil {
-		t.Fatal("OnResponse 错误应终止请求")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeRequestFailed {
 		t.Errorf("错误码 = %s,want %s", code, CodeRequestFailed)
 	}
@@ -93,13 +87,11 @@ func TestHooksOnError(t *testing.T) {
 	client, err := New(WithHooks(Hooks{
 		OnError: func(error) { onError.Add(1) },
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), "http://"+ln)
-	if err == nil {
-		t.Fatal("应返回连接错误")
-	}
+	testx.RequireError(t, err)
+
 	if onError.Load() != 1 {
 		t.Errorf("OnError 调用次数 = %d,want 1", onError.Load())
 	}
@@ -124,13 +116,11 @@ func TestHooksCalledPerRetryAttempt(t *testing.T) {
 			return nil
 		}}),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	if onRequest.Load() != 2 {
 		t.Errorf("OnRequest 应随每次尝试调用:次数 = %d", onRequest.Load())
@@ -143,12 +133,10 @@ func TestHooksNilNoop(t *testing.T) {
 	}))
 	defer srv.Close()
 	client, err := New(WithHooks(Hooks{}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 }

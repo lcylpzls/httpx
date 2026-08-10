@@ -3,6 +3,7 @@ package httpx
 import (
 	"bytes"
 	"crypto/tls"
+	testx "github.com/lcylpzls/testx"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -33,9 +34,8 @@ func TestProtocolString(t *testing.T) {
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := defaultConfig()
-	if cfg.protocol != ProtocolAuto {
-		t.Errorf("默认协议应为 Auto,got %v", cfg.protocol)
-	}
+	testx.Equal(t, cfg.protocol, ProtocolAuto)
+
 	if cfg.dialTimeout != defaultDialTimeout ||
 		cfg.tlsHandshakeTimeout != defaultTLSHandshakeTimeout ||
 		cfg.responseHeaderTimeout != defaultResponseHeaderTimeout {
@@ -56,9 +56,8 @@ func TestOptionsApply(t *testing.T) {
 	metrics := &fakeMetrics{}
 	tlsCfg := &tls.Config{ServerName: "example.com"}
 	jar, err := cookiejar.New(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	var policyCalls int
 	cfg := defaultConfig()
 	opts := []Option{
@@ -107,9 +106,8 @@ func TestOptionsApply(t *testing.T) {
 	if cfg.tlsClientConfig == nil || cfg.tlsClientConfig.ServerName != "example.com" {
 		t.Error("TLS 配置选项应用失败")
 	}
-	if cfg.protocol != ProtocolHTTP2 {
-		t.Error("协议选项应用失败")
-	}
+	testx.Equal(t, cfg.protocol, ProtocolHTTP2)
+
 	if cfg.retry == nil || cfg.retry.maxAttempts != 3 {
 		t.Error("重试选项应用失败")
 	}
@@ -119,9 +117,8 @@ func TestOptionsApply(t *testing.T) {
 	if cfg.maxRedirects != 5 || cfg.redirectPolicy == nil {
 		t.Error("重定向选项应用失败")
 	}
-	if cfg.cookieJar != jar {
-		t.Error("CookieJar 选项应用失败")
-	}
+	testx.Equal(t, cfg.cookieJar, jar)
+
 	if cfg.hooks.OnError == nil {
 		t.Error("钩子选项应用失败")
 	}
@@ -174,17 +171,15 @@ func TestValidateConfig(t *testing.T) {
 			tc.mutate(&cfg)
 			err := validateConfig(cfg)
 			if tc.wantErr {
-				if err == nil {
-					t.Fatal("应返回错误")
-				}
+				testx.RequireError(t, err)
+
 				if code, _ := errx.CodeOf(err); code != tc.code {
 					t.Errorf("错误码 = %s,want %s", code, tc.code)
 				}
 				return
 			}
-			if err != nil {
-				t.Fatalf("不应返回错误:%v", err)
-			}
+			testx.RequireNoError(t, err)
+
 		})
 	}
 }
@@ -243,9 +238,8 @@ func TestBodyToReader(t *testing.T) {
 	}
 	// JSON 序列化失败
 	_, _, err = bodyToReader(map[any]any{make(chan int): 1})
-	if err == nil {
-		t.Fatal("不可序列化类型应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeInvalidConfig {
 		t.Errorf("错误码 = %s,want %s", code, CodeInvalidConfig)
 	}

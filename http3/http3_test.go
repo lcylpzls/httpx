@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
+	testx "github.com/lcylpzls/testx"
 	"io"
 	"math/big"
 	"net"
@@ -27,18 +28,15 @@ func TestHTTP3Request(t *testing.T) {
 		httpx.WithProtocol(httpx.ProtocolHTTP3),
 		httpx.WithTLSClientConfig(&tls.Config{RootCAs: pool}),
 	)
-	if err != nil {
-		t.Fatalf("New 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), "https://"+addr+"/hello")
-	if err != nil {
-		t.Fatalf("HTTP/3 请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("读取响应失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	if resp.StatusCode != http.StatusOK || string(data) != "hello h3" {
 		t.Errorf("响应不符:status=%d body=%q", resp.StatusCode, data)
 	}
@@ -57,18 +55,15 @@ func TestHTTP3RequestWithTimeout(t *testing.T) {
 		httpx.WithTimeout(5*time.Second),
 		httpx.WithTLSClientConfig(&tls.Config{RootCAs: pool}),
 	)
-	if err != nil {
-		t.Fatalf("New 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), "https://"+addr+"/hello")
-	if err != nil {
-		t.Fatalf("HTTP/3 请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("带超时读取响应体失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	if resp.StatusCode != http.StatusOK || string(data) != "hello h3" {
 		t.Errorf("响应不符:status=%d body=%q", resp.StatusCode, data)
 	}
@@ -79,14 +74,12 @@ func TestHTTP3WithoutTLSConfig(t *testing.T) {
 	addr, _ := newH3Server(t)
 
 	client, err := httpx.New(httpx.WithProtocol(httpx.ProtocolHTTP3))
-	if err != nil {
-		t.Fatalf("New 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	// 未注入信任根证书,握手应失败。
 	_, err = client.Get(context.Background(), "https://"+addr)
-	if err == nil {
-		t.Fatal("自签证书未被信任时应失败")
-	}
+	testx.RequireError(t, err)
+
 }
 
 func TestHTTP3DialTimeoutZero(t *testing.T) {
@@ -97,13 +90,11 @@ func TestHTTP3DialTimeoutZero(t *testing.T) {
 		httpx.WithDialTimeout(0),
 		httpx.WithTLSClientConfig(&tls.Config{RootCAs: pool}),
 	)
-	if err != nil {
-		t.Fatalf("New 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), "https://"+addr)
-	if err != nil {
-		t.Fatalf("DialTimeout=0 应使用默认拨号:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	client.CloseIdleConnections()
 }
@@ -116,13 +107,11 @@ func TestHTTP3DisableCompression(t *testing.T) {
 		httpx.WithDisableCompression(true),
 		httpx.WithTLSClientConfig(&tls.Config{RootCAs: pool}),
 	)
-	if err != nil {
-		t.Fatalf("New 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), "https://"+addr)
-	if err != nil {
-		t.Fatalf("HTTP/3 请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	client.CloseIdleConnections()
 }
@@ -135,13 +124,11 @@ func TestHTTP3MaxResponseHeaderBytes(t *testing.T) {
 		httpx.WithMaxResponseHeaderBytes(1<<20),
 		httpx.WithTLSClientConfig(&tls.Config{RootCAs: pool}),
 	)
-	if err != nil {
-		t.Fatalf("New 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), "https://"+addr)
-	if err != nil {
-		t.Fatalf("HTTP/3 请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	client.CloseIdleConnections()
 }
@@ -151,9 +138,8 @@ func newH3Server(t *testing.T) (string, *x509.CertPool) {
 	t.Helper()
 	cert, leaf := newTestCert(t)
 	ln, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0})
-	if err != nil {
-		t.Fatalf("监听 UDP 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	srv := &http3.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Protocol", r.Proto)
@@ -178,9 +164,8 @@ func newH3Server(t *testing.T) (string, *x509.CertPool) {
 func newTestCert(t *testing.T) (tls.Certificate, *x509.Certificate) {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatalf("生成密钥失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject:      pkix.Name{CommonName: "127.0.0.1"},
@@ -191,12 +176,10 @@ func newTestCert(t *testing.T) (tls.Certificate, *x509.Certificate) {
 		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
-	if err != nil {
-		t.Fatalf("创建证书失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	leaf, err := x509.ParseCertificate(der)
-	if err != nil {
-		t.Fatalf("解析证书失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}, leaf
 }

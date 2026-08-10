@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	testx "github.com/lcylpzls/testx"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -18,13 +19,11 @@ func TestObserveMetrics(t *testing.T) {
 
 	m := newFakeMetrics()
 	client, err := New(WithMetrics(m))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 
 	if m.counter(metricRequests, http.MethodGet) != 1 {
@@ -46,21 +45,18 @@ func TestObserveMetrics(t *testing.T) {
 
 func TestObserveErrorMetrics(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	addr := ln.Addr().String()
 	_ = ln.Close()
 
 	m := newFakeMetrics()
 	client, err := New(WithMetrics(m))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), "http://"+addr)
-	if err == nil {
-		t.Fatal("应返回连接错误")
-	}
+	testx.RequireError(t, err)
+
 	if m.counter(metricErrors, http.MethodGet) != 1 {
 		t.Errorf("errors 计数 = %d,want 1", m.counter(metricErrors, http.MethodGet))
 	}
@@ -79,13 +75,11 @@ func TestObserveRetryMetrics(t *testing.T) {
 
 	m := newFakeMetrics()
 	client, err := New(WithRetry(2, FixedBackoff(time.Millisecond)), WithMetrics(m))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 
 	if m.counter(metricRequests, http.MethodGet) != 2 {
@@ -105,13 +99,11 @@ func TestObserveSlowMetrics(t *testing.T) {
 
 	m := newFakeMetrics()
 	client, err := New(WithMetrics(m), WithSlowThreshold(time.Millisecond))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 
 	if m.counter(metricSlowRequests, http.MethodGet) != 1 {
@@ -127,13 +119,11 @@ func TestObserveZeroSlowThresholdFallsBack(t *testing.T) {
 
 	m := newFakeMetrics()
 	client, err := New(WithMetrics(m), WithSlowThreshold(0))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 
 	if m.counter(metricSlowRequests, http.MethodGet) != 0 {
@@ -154,13 +144,11 @@ func TestObserveLogs(t *testing.T) {
 		WithLogRequest(true),
 		WithSlowThreshold(time.Millisecond),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 
 	if !logger.hasDebug("HTTP 请求") {
@@ -173,21 +161,18 @@ func TestObserveLogs(t *testing.T) {
 
 func TestObserveErrorLogs(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	addr := ln.Addr().String()
 	_ = ln.Close()
 
 	logger := &fakeLogger{}
 	client, err := New(WithLogger(logger))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), "http://"+addr)
-	if err == nil {
-		t.Fatal("应返回连接错误")
-	}
+	testx.RequireError(t, err)
+
 	if !logger.hasWarn("HTTP 请求失败") {
 		t.Error("应输出请求失败日志")
 	}
@@ -201,13 +186,11 @@ func TestObserveWithoutLogRequest(t *testing.T) {
 
 	logger := &fakeLogger{}
 	client, err := New(WithLogger(logger))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 
 	if logger.hasDebug("HTTP 请求") {

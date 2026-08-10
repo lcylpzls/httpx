@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	testx "github.com/lcylpzls/testx"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -18,13 +19,11 @@ func TestStatsSuccess(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	stats := client.Stats()
 	if stats.TotalRequests != 1 || stats.ActiveRequests != 0 ||
@@ -36,13 +35,11 @@ func TestStatsSuccess(t *testing.T) {
 func TestStatsError(t *testing.T) {
 	ln := newClosedListener(t)
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), "http://"+ln)
-	if err == nil {
-		t.Fatal("应返回连接错误")
-	}
+	testx.RequireError(t, err)
+
 	stats := client.Stats()
 	if stats.TotalRequests != 1 || stats.TotalErrors != 1 {
 		t.Errorf("统计不符:%+v", stats)
@@ -61,13 +58,11 @@ func TestStatsRetries(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New(WithRetry(2, FixedBackoff(10*time.Millisecond)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	stats := client.Stats()
 	if stats.TotalRequests != 2 || stats.Retries != 1 || stats.TotalErrors != 0 {
@@ -84,9 +79,8 @@ func TestStatsActiveDuringRequest(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	var activeDuring atomic.Uint64
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -123,9 +117,8 @@ func TestStatsConcurrent(t *testing.T) {
 	defer srv.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
@@ -148,9 +141,8 @@ func TestStatsConcurrent(t *testing.T) {
 func newClosedListener(t *testing.T) string {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	addr := ln.Addr().String()
 	_ = ln.Close()
 	return addr

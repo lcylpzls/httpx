@@ -1,10 +1,11 @@
 module github.com/lcylpzls/httpx
 
-go 1.26
+go 1.26.5
 
 require (
-	github.com/lcylpzls/errx v1.3.1
+	github.com/lcylpzls/errx v1.4.0
 	github.com/lcylpzls/logx v1.0.0
+	github.com/lcylpzls/testx v1.2.0
 	github.com/quic-go/quic-go v0.61.0
 	golang.org/x/net v0.57.0
 )

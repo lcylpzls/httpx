@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	testx "github.com/lcylpzls/testx"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -66,13 +67,11 @@ func newRedirectServer(t *testing.T, status int, location string) (*httptest.Ser
 func TestRedirectFollowed(t *testing.T) {
 	srv, rec := newRedirectServer(t, http.StatusFound, "/target")
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL+"/start")
-	if err != nil {
-		t.Fatalf("跟随重定向失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if string(body) != "ok" {
@@ -88,9 +87,8 @@ func TestRedirectAbsoluteLocation(t *testing.T) {
 	srv, rec := newRedirectServer(t, http.StatusMovedPermanently, "http://example.com/x")
 	// 覆盖绝对地址解析分支:直接单测 redirectRequest。
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/start", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp := &http.Response{
 		StatusCode: http.StatusMovedPermanently,
 		Header:     make(http.Header),
@@ -98,9 +96,8 @@ func TestRedirectAbsoluteLocation(t *testing.T) {
 	}
 	resp.Header.Set("Location", "http://example.com/x")
 	next, err := redirectRequest(req, resp)
-	if err != nil {
-		t.Fatalf("redirectRequest 失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	if next.URL.String() != "http://example.com/x" {
 		t.Errorf("目标 URL = %s", next.URL)
 	}
@@ -129,18 +126,15 @@ func TestRedirectMethodConversion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, rec := newRedirectServer(t, tc.status, "/target")
 			client, err := New()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testx.RequireNoError(t, err)
+
 			req, err := http.NewRequestWithContext(
 				context.Background(), tc.method, srv.URL+"/start", strings.NewReader(tc.body))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testx.RequireNoError(t, err)
+
 			resp, err := client.Do(context.Background(), req)
-			if err != nil {
-				t.Fatalf("请求失败:%v", err)
-			}
+			testx.RequireNoError(t, err)
+
 			_ = resp.Body.Close()
 			methods, bodies, _ := rec.snapshot()
 			if len(methods) != 1 || methods[0] != tc.wantMethod {
@@ -156,29 +150,24 @@ func TestRedirectMethodConversion(t *testing.T) {
 func TestRedirectNoLocation(t *testing.T) {
 	srv, _ := newRedirectServer(t, http.StatusFound, "")
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL+"/start")
-	if err != nil {
-		t.Fatalf("无 Location 的 3xx 应直接返回:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusFound {
-		t.Errorf("状态码 = %d,want 302", resp.StatusCode)
-	}
+	testx.Equal(t, resp.StatusCode, http.StatusFound)
+
 }
 
 func TestRedirectExceeded(t *testing.T) {
 	srv, _ := newRedirectServer(t, http.StatusFound, "/start") // 自我循环
 	client, err := New(WithMaxRedirects(3))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), srv.URL+"/start")
-	if err == nil {
-		t.Fatal("重定向超限应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeRedirectExceeded {
 		t.Errorf("错误码 = %s,want %s", code, CodeRedirectExceeded)
 	}
@@ -187,17 +176,14 @@ func TestRedirectExceeded(t *testing.T) {
 func TestNoRedirect(t *testing.T) {
 	srv, _ := newRedirectServer(t, http.StatusFound, "/target")
 	client, err := New(WithNoRedirect())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL+"/start")
-	if err != nil {
-		t.Fatalf("关闭跟随应直接返回 3xx:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusFound {
-		t.Errorf("状态码 = %d,want 302", resp.StatusCode)
-	}
+	testx.Equal(t, resp.StatusCode, http.StatusFound)
+
 }
 
 func TestRedirectPolicyAllow(t *testing.T) {
@@ -210,13 +196,11 @@ func TestRedirectPolicyAllow(t *testing.T) {
 		}
 		return nil
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL+"/start")
-	if err != nil {
-		t.Fatalf("策略放行失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	if called != 1 {
 		t.Errorf("策略调用次数 = %d,want 1", called)
@@ -233,19 +217,16 @@ func TestRedirectPolicyReject(t *testing.T) {
 	client, err := New(WithRedirectPolicy(func(*http.Request, []*http.Request) error {
 		return policyErr
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	_, err = client.Get(context.Background(), srv.URL+"/start")
-	if err == nil {
-		t.Fatal("策略拒绝应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeRedirectExceeded {
 		t.Errorf("错误码 = %s,want %s", code, CodeRedirectExceeded)
 	}
-	if !errors.Is(err, policyErr) {
-		t.Error("应保留策略原始错误")
-	}
+	testx.ErrorIs(t, err, policyErr)
+
 }
 
 func TestRedirectCrossOriginStripsSensitiveHeaders(t *testing.T) {
@@ -261,16 +242,14 @@ func TestRedirectCrossOriginStripsSensitiveHeaders(t *testing.T) {
 	defer source.Close()
 
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), source.URL+"/start",
 		WithHeader("Authorization", "Bearer secret"),
 		WithHeader("Cookie", "session=abc"),
 	)
-	if err != nil {
-		t.Fatalf("请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	_, _, headers := rec.snapshot()
 	if len(headers) != 1 {
@@ -284,15 +263,13 @@ func TestRedirectCrossOriginStripsSensitiveHeaders(t *testing.T) {
 func TestRedirectSameOriginKeepsSensitiveHeaders(t *testing.T) {
 	srv, rec := newRedirectServer(t, http.StatusFound, "/target")
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Get(context.Background(), srv.URL+"/start",
 		WithHeader("Authorization", "Bearer secret"),
 	)
-	if err != nil {
-		t.Fatalf("请求失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	_, _, headers := rec.snapshot()
 	if len(headers) != 1 || headers[0].Get("Authorization") != "Bearer secret" {
@@ -303,19 +280,16 @@ func TestRedirectSameOriginKeepsSensitiveHeaders(t *testing.T) {
 func TestRedirectBodyUnreadable(t *testing.T) {
 	srv, _ := newRedirectServer(t, http.StatusTemporaryRedirect, "/target")
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	req, err := http.NewRequestWithContext(
 		context.Background(), http.MethodPut, srv.URL+"/start", io.NopCloser(strings.NewReader("x")))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	req.GetBody = nil
 	_, err = client.Do(context.Background(), req)
-	if err == nil {
-		t.Fatal("307 保留不可重读请求体应报错")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeBodyUnreadable {
 		t.Errorf("错误码 = %s,want %s", code, CodeBodyUnreadable)
 	}
@@ -324,18 +298,15 @@ func TestRedirectBodyUnreadable(t *testing.T) {
 func TestRedirectBodyReplayable(t *testing.T) {
 	srv, rec := newRedirectServer(t, http.StatusTemporaryRedirect, "/target")
 	client, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	req, err := http.NewRequestWithContext(
 		context.Background(), http.MethodPut, srv.URL+"/start", bytes.NewReader([]byte("payload")))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp, err := client.Do(context.Background(), req)
-	if err != nil {
-		t.Fatalf("307 可重读请求体应成功:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	_ = resp.Body.Close()
 	methods, bodies, _ := rec.snapshot()
 	if len(methods) != 1 || methods[0] != http.MethodPut {
@@ -348,9 +319,8 @@ func TestRedirectBodyReplayable(t *testing.T) {
 
 func TestRedirectInvalidLocation(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, "http://example.com/start", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testx.RequireNoError(t, err)
+
 	resp := &http.Response{
 		StatusCode: http.StatusFound,
 		Header:     make(http.Header),
@@ -358,9 +328,8 @@ func TestRedirectInvalidLocation(t *testing.T) {
 	}
 	resp.Header.Set("Location", "http://%zz")
 	_, err = redirectRequest(req, resp)
-	if err == nil {
-		t.Fatal("非法 Location 应返回错误")
-	}
+	testx.RequireError(t, err)
+
 	if code, _ := errx.CodeOf(err); code != CodeRedirectFailed {
 		t.Errorf("错误码 = %s,want %s", code, CodeRedirectFailed)
 	}
@@ -370,9 +339,8 @@ func TestReplayBody(t *testing.T) {
 	// GetBody 成功
 	req, _ := http.NewRequest(http.MethodPut, "http://example.com", strings.NewReader("x"))
 	body, err := replayBody(req)
-	if err != nil {
-		t.Fatalf("GetBody 重放失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	data, _ := io.ReadAll(body)
 	if string(data) != "x" {
 		t.Errorf("GetBody 内容 = %q", data)
@@ -391,9 +359,8 @@ func TestReplayBody(t *testing.T) {
 	req.Body = seekReadCloser{bytes.NewReader([]byte("y"))}
 	req.GetBody = nil
 	body, err = replayBody(req)
-	if err != nil {
-		t.Fatalf("ReadSeeker 重放失败:%v", err)
-	}
+	testx.RequireNoError(t, err)
+
 	data, _ = io.ReadAll(body)
 	if string(data) != "y" {
 		t.Errorf("ReadSeeker 内容 = %q", data)
@@ -410,9 +377,8 @@ func TestReplayBody(t *testing.T) {
 func TestSameOrigin(t *testing.T) {
 	parse := func(raw string) *url.URL {
 		u, err := url.Parse(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testx.RequireNoError(t, err)
+
 		return u
 	}
 	cases := []struct {
