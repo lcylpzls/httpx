@@ -2,10 +2,12 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/lcylpzls/errx v1.4.0 h1:CdlMZuf2F49PCyUkRROf11i1gHcAI38GTG+kxMAGQWI=
 github.com/lcylpzls/errx v1.4.0/go.mod h1:+GcqVS4+6iuHvCELjwpsc1RKrdEtSNz00xq0lFrgdgI=
-github.com/lcylpzls/logx v1.0.0 h1:jl5KHOGADJBIUif7UXaKiZiT3yycxKmmSHRxkatkaU0=
-github.com/lcylpzls/logx v1.0.0/go.mod h1:reR9kkXoO1rL8xqvvDvNAyyKsU4nqA/9WJlkeQDne4I=
-github.com/lcylpzls/testx v1.2.1 h1:Yu1JQqyYobF/l4dM3MkK6fmeR+iBZRXHYdFrogkZmLM=
-github.com/lcylpzls/testx v1.2.1/go.mod h1:RQM/Rpxw2CfbZHXrChB9Mq+kMryQ+fQy10jHd9CeQTc=
+github.com/lcylpzls/httpx v1.1.3 h1:npzk4S80XG8CDjPdXn/mtPpbJpRsmxrpEXXHb7Ms3ec=
+github.com/lcylpzls/httpx v1.1.3/go.mod h1:Pf7Re7TZcwBySqkqi4YVVZA4I62UXEAcZI8Ygbbn/T8=
+github.com/lcylpzls/logx v1.2.5 h1:SZRtkhUUr51x9CTgsRq1tN8YBwlnOydTvIvf9ufMl68=
+github.com/lcylpzls/logx v1.2.5/go.mod h1:icJFvWzNtDZ1rEPOAzYfoSpgd0qIOIq6FJrjl3gYVHc=
+github.com/lcylpzls/testx v1.2.3 h1:oDhHMQU8j+Y44VOPiXLcwgGcDCICe2mCQRwW8qwKUb4=
+github.com/lcylpzls/testx v1.2.3/go.mod h1:Rd8MiIpLu+x1b/PcXv8iUYF4xqkdiiXOF9dF4Pr3rv4=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/quic-go/go-ossfuzz-seeds v0.1.0 h1:APacT+iIaNF6fd8AGEiN3bT/Jtkd2jz4v4TzM7MFjy0=
