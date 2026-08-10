@@ -12,6 +12,7 @@ import (
 
 	"github.com/lcylpzls/errx"
 	"github.com/lcylpzls/logx"
+	"github.com/lcylpzls/validx"
 )
 
 // 生产实践默认值:连接池与超时参数在未显式配置时使用。
@@ -323,71 +324,81 @@ func WithRoundTripperWrapper(wrap func(http.RoundTripper) http.RoundTripper) Opt
 	}
 }
 
-// validateConfig 校验配置参数,负数超时/连接池参数与非法协议均视为非法。
+// init 注册配置校验规则到 validx 全局规则表，错误码保持 httpx 语义。
+func init() {
+	_ = validx.RegisterRule("httpx_config", func(value any, param, path string) error {
+		// 内部调用保证 value 为 config。
+		cfg := value.(config)
+		if cfg.timeout < 0 {
+			return errx.NewCode(CodeInvalidConfig, "整体超时不能为负数")
+		}
+		if cfg.dialTimeout < 0 {
+			return errx.NewCode(CodeInvalidConfig, "DialTimeout 不能为负数")
+		}
+		if cfg.tlsHandshakeTimeout < 0 {
+			return errx.NewCode(CodeInvalidConfig, "TLSHandshakeTimeout 不能为负数")
+		}
+		if cfg.responseHeaderTimeout < 0 {
+			return errx.NewCode(CodeInvalidConfig, "ResponseHeaderTimeout 不能为负数")
+		}
+		if cfg.maxIdleConns < 0 {
+			return errx.NewCode(CodeInvalidConfig, "MaxIdleConns 不能为负数")
+		}
+		if cfg.maxIdleConnsPerHost < 0 {
+			return errx.NewCode(CodeInvalidConfig, "MaxIdleConnsPerHost 不能为负数")
+		}
+		if cfg.idleConnTimeout < 0 {
+			return errx.NewCode(CodeInvalidConfig, "IdleConnTimeout 不能为负数")
+		}
+		if cfg.slowThreshold < 0 {
+			return errx.NewCode(CodeInvalidConfig, "SlowThreshold 不能为负数")
+		}
+		if cfg.maxRedirects < 0 {
+			return errx.NewCode(CodeInvalidConfig, "MaxRedirects 不能为负数")
+		}
+		if cfg.maxConcurrency < 0 {
+			return errx.NewCode(CodeInvalidConfig, "MaxConcurrency 不能为负数")
+		}
+		if cfg.h2ReadIdleTimeout < 0 {
+			return errx.NewCode(CodeInvalidConfig, "HTTP/2 读空闲超时不能为负数")
+		}
+		if cfg.h2PingTimeout < 0 {
+			return errx.NewCode(CodeInvalidConfig, "HTTP/2 Ping 超时不能为负数")
+		}
+		if cfg.maxResponseHeaderBytes < 0 {
+			return errx.NewCode(CodeInvalidConfig, "MaxResponseHeaderBytes 不能为负数")
+		}
+		if cfg.maxConnsPerHost < 0 {
+			return errx.NewCode(CodeInvalidConfig, "MaxConnsPerHost 不能为负数")
+		}
+		if cfg.expectContinueTimeout < 0 {
+			return errx.NewCode(CodeInvalidConfig, "ExpectContinueTimeout 不能为负数")
+		}
+		if cfg.protocol < ProtocolAuto || cfg.protocol > ProtocolHTTP3 {
+			return errx.NewCodef(CodeInvalidConfig, "不支持的协议: %v", cfg.protocol)
+		}
+		if cfg.retry != nil {
+			if cfg.retry.maxAttempts < 1 {
+				return errx.NewCode(CodeInvalidConfig, "重试次数必须大于等于 1")
+			}
+			if cfg.retry.backoff == nil {
+				return errx.NewCode(CodeInvalidConfig, "重试退避策略不能为空")
+			}
+			if cfg.retry.totalTimeout < 0 {
+				return errx.NewCode(CodeInvalidConfig, "重试总时长不能为负数")
+			}
+			if cfg.retry.maxBackoff < 0 {
+				return errx.NewCode(CodeInvalidConfig, "重试退避上限不能为负数")
+			}
+		}
+		return nil
+	})
+}
+
+// validateConfig 校验配置参数，负数超时/连接池参数与非法协议均视为非法
+// （统一走 validx 规则）。
 func validateConfig(cfg config) error {
-	if cfg.timeout < 0 {
-		return errx.NewCode(CodeInvalidConfig, "整体超时不能为负数")
-	}
-	if cfg.dialTimeout < 0 {
-		return errx.NewCode(CodeInvalidConfig, "DialTimeout 不能为负数")
-	}
-	if cfg.tlsHandshakeTimeout < 0 {
-		return errx.NewCode(CodeInvalidConfig, "TLSHandshakeTimeout 不能为负数")
-	}
-	if cfg.responseHeaderTimeout < 0 {
-		return errx.NewCode(CodeInvalidConfig, "ResponseHeaderTimeout 不能为负数")
-	}
-	if cfg.maxIdleConns < 0 {
-		return errx.NewCode(CodeInvalidConfig, "MaxIdleConns 不能为负数")
-	}
-	if cfg.maxIdleConnsPerHost < 0 {
-		return errx.NewCode(CodeInvalidConfig, "MaxIdleConnsPerHost 不能为负数")
-	}
-	if cfg.idleConnTimeout < 0 {
-		return errx.NewCode(CodeInvalidConfig, "IdleConnTimeout 不能为负数")
-	}
-	if cfg.slowThreshold < 0 {
-		return errx.NewCode(CodeInvalidConfig, "SlowThreshold 不能为负数")
-	}
-	if cfg.maxRedirects < 0 {
-		return errx.NewCode(CodeInvalidConfig, "MaxRedirects 不能为负数")
-	}
-	if cfg.maxConcurrency < 0 {
-		return errx.NewCode(CodeInvalidConfig, "MaxConcurrency 不能为负数")
-	}
-	if cfg.h2ReadIdleTimeout < 0 {
-		return errx.NewCode(CodeInvalidConfig, "HTTP/2 读空闲超时不能为负数")
-	}
-	if cfg.h2PingTimeout < 0 {
-		return errx.NewCode(CodeInvalidConfig, "HTTP/2 Ping 超时不能为负数")
-	}
-	if cfg.maxResponseHeaderBytes < 0 {
-		return errx.NewCode(CodeInvalidConfig, "MaxResponseHeaderBytes 不能为负数")
-	}
-	if cfg.maxConnsPerHost < 0 {
-		return errx.NewCode(CodeInvalidConfig, "MaxConnsPerHost 不能为负数")
-	}
-	if cfg.expectContinueTimeout < 0 {
-		return errx.NewCode(CodeInvalidConfig, "ExpectContinueTimeout 不能为负数")
-	}
-	if cfg.protocol < ProtocolAuto || cfg.protocol > ProtocolHTTP3 {
-		return errx.NewCodef(CodeInvalidConfig, "不支持的协议: %v", cfg.protocol)
-	}
-	if cfg.retry != nil {
-		if cfg.retry.maxAttempts < 1 {
-			return errx.NewCode(CodeInvalidConfig, "重试次数必须大于等于 1")
-		}
-		if cfg.retry.backoff == nil {
-			return errx.NewCode(CodeInvalidConfig, "重试退避策略不能为空")
-		}
-		if cfg.retry.totalTimeout < 0 {
-			return errx.NewCode(CodeInvalidConfig, "重试总时长不能为负数")
-		}
-		if cfg.retry.maxBackoff < 0 {
-			return errx.NewCode(CodeInvalidConfig, "重试退避上限不能为负数")
-		}
-	}
-	return nil
+	return validx.ValidateField(cfg, "httpx_config")
 }
 
 // RequestOption 修改单个请求的行为,在 Get / Post / Request 时应用。

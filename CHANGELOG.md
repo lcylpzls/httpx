@@ -2,6 +2,17 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v1.2.0] - 2026-08-10
+
+### 变更
+
+- 配置校验统一迁移至家族 `validx`：注册 `httpx_config` 全局规则，调用点走 `validx.ValidateField`；
+- errx 错误码保持 httpx 语义，行为不变。
+
+### 质量
+
+- 全部库包语句覆盖率保持 100%；race / vet / staticcheck / fuzz / govulncheck 全绿。
+
 ## [v1.1.3] - 2026-08-10
 
 ### 变更
