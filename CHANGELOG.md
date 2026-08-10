@@ -2,6 +2,16 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v1.2.2] - 2026-08-10
+
+### 变更
+
+- 家族依赖统一对齐到最新基线（errx v1.5.4 / logx v1.3.0 / testx v1.4.1 / validx v1.2.2 / webx v1.5.2 / confx v1.0.0 / cryptox v1.0.0 等），无 API 变更。
+
+### 质量
+
+- 全部库包语句覆盖率保持 100%；race / vet / staticcheck / fuzz / govulncheck 全绿。
+
 ## [v1.2.1] - 2026-08-10
 
 ### 变更
