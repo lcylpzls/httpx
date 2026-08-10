@@ -1,11 +1,11 @@
 module github.com/lcylpzls/httpx/examples/http3
 
-go 1.26
+go 1.26.5
 
 require github.com/lcylpzls/httpx v0.0.0
 
 require (
-	github.com/lcylpzls/errx v1.3.1 // indirect
+	github.com/lcylpzls/errx v1.4.0 // indirect
 	github.com/lcylpzls/logx v1.0.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.61.0 // indirect

@@ -1,7 +1,9 @@
-github.com/lcylpzls/errx v1.3.1 h1:BEz53mq1Hd71VBI21vEhgkK54VOlX8T61ElnuUClh9o=
-github.com/lcylpzls/errx v1.3.1/go.mod h1:+GcqVS4+6iuHvCELjwpsc1RKrdEtSNz00xq0lFrgdgI=
+github.com/lcylpzls/errx v1.4.0 h1:CdlMZuf2F49PCyUkRROf11i1gHcAI38GTG+kxMAGQWI=
+github.com/lcylpzls/errx v1.4.0/go.mod h1:+GcqVS4+6iuHvCELjwpsc1RKrdEtSNz00xq0lFrgdgI=
 github.com/lcylpzls/logx v1.0.0 h1:jl5KHOGADJBIUif7UXaKiZiT3yycxKmmSHRxkatkaU0=
 github.com/lcylpzls/logx v1.0.0/go.mod h1:reR9kkXoO1rL8xqvvDvNAyyKsU4nqA/9WJlkeQDne4I=
+github.com/lcylpzls/testx v1.2.0 h1:MrIoo+Ips5md+CtlOYpmvyWJeNVrL+9d2FG56nroGq8=
+github.com/lcylpzls/testx v1.2.0/go.mod h1:FZ7iJdhG1U2gaFvS/CfObIAR2QnG+2rY7S04dlDnKEY=
 golang.org/x/net v0.57.0 h1:K5+3DljvIuDG9/Jv9rvyMywYNFCQ9RSUY6OOTTkT+tE=
 golang.org/x/net v0.57.0/go.mod h1:KpXc8iv+r3XplLAG/f7Jsf9RPszJzdR0f58q9vGOuEU=
 golang.org/x/text v0.40.0 h1:Ub2Z6/xjgF1WrYQz2nuITOEegKFtiIy+rieRJ5lHZKs=
