@@ -28,16 +28,16 @@ func observe(cfg config, attempt int, req *http.Request, resp *http.Response, er
 	path := req.URL.Path
 
 	if cfg.metrics != nil {
-		cfg.metrics.IncCounter(metricRequests, method)
-		cfg.metrics.ObserveDuration(metricDuration, duration.Seconds(), method)
+		cfg.metrics.IncCounter(metricRequests, []string{method})
+		cfg.metrics.ObserveDuration(metricDuration, duration.Seconds(), []string{method})
 		if err != nil {
-			cfg.metrics.IncCounter(metricErrors, method)
+			cfg.metrics.IncCounter(metricErrors, []string{method})
 		}
 		if attempt > 1 {
-			cfg.metrics.IncCounter(metricRetries, method)
+			cfg.metrics.IncCounter(metricRetries, []string{method})
 		}
 		if isSlow {
-			cfg.metrics.IncCounter(metricSlowRequests, method)
+			cfg.metrics.IncCounter(metricSlowRequests, []string{method})
 		}
 	}
 	if cfg.logger == nil {

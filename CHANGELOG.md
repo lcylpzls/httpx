@@ -2,6 +2,13 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v1.2.5] - 2026-08-10
+
+### 变更
+
+- Metrics 契约统一为 `metricsx.Sink`（破坏性：注入实现需满足 Sink 协议）；
+- 依赖升级：metricsx v1.5.4、errx v1.5.7、logx v1.3.4、resiliencex v1.3.4、validx v1.2.5、testx v1.4.5 及三方最新版本。
+
 ## [v1.2.4] - 2026-08-10
 
 ### 变更

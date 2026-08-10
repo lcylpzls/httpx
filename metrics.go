@@ -1,9 +1,7 @@
 package httpx
 
-// Metrics 是最小指标接口,默认 no-op,便于外部接 Prometheus 等适配器。
-type Metrics interface {
-	// IncCounter 增加一个计数指标。
-	IncCounter(name string, labels ...string)
-	// ObserveDuration 记录一次耗时观测。
-	ObserveDuration(name string, seconds float64, labels ...string)
-}
+import "github.com/lcylpzls/metricsx"
+
+// Metrics 是最小指标协议（家族统一契约，定义见 metricsx.Sink）。
+// 调用方按 Sink 签名传入标签切片；无标签时传 nil。
+type Metrics = metricsx.Sink
