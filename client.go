@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/lcylpzls/errx"
+	"github.com/lcylpzls/resiliencex"
 )
 
 // Client 是 HTTP 客户端入口,持有固定协议与连接池配置。
@@ -24,7 +25,8 @@ type Client struct {
 	cfg   config
 	rt    http.RoundTripper
 	stats clientStats
-	sem   chan struct{}
+	// bulkhead 限制在途请求数（0 表示不限制），算法由 resiliencex 提供。
+	bulkhead *resiliencex.Bulkhead
 }
 
 // New 创建 HTTP 客户端。协议与连接池在创建时固定,运行期不可变。
@@ -47,7 +49,11 @@ func New(opts ...Option) (*Client, error) {
 	}
 	c := &Client{cfg: cfg, rt: rt}
 	if cfg.maxConcurrency > 0 {
-		c.sem = make(chan struct{}, cfg.maxConcurrency)
+		b, err := resiliencex.NewBulkhead(cfg.maxConcurrency)
+		if err != nil {
+			return nil, err
+		}
+		c.bulkhead = b
 	}
 	return c, nil
 }
@@ -87,13 +93,12 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		return resp, nil
 	}
 	// 并发限流:等待许可,受 context 取消约束。
-	if c.sem != nil {
-		select {
-		case c.sem <- struct{}{}:
-			defer func() { <-c.sem }()
-		case <-ctx.Done():
-			return nil, errx.Wrap(ctx.Err(), errx.KindCancelled, CodeRequestFailed, "等待并发许可被取消")
+	if c.bulkhead != nil {
+		release, err := c.bulkhead.Acquire(ctx)
+		if err != nil {
+			return nil, errx.Wrap(err, errx.KindCancelled, CodeRequestFailed, "等待并发许可被取消")
 		}
+		defer release()
 	}
 	resp, err := c.followRedirects(ctx, req)
 	if err != nil {

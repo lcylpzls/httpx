@@ -2,6 +2,16 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v1.2.1] - 2026-08-10
+
+### 变更
+
+- 在途请求并发限制统一引用家族 esiliencex.Bulkhead（含 context 取消语义），去除自研信号量实现；错误保持 KindCancelled 语义。
+
+### 质量
+
+- 根包与 http3 子包语句覆盖率保持 100%；race / vet / staticcheck / fuzz / govulncheck 全绿。
+
 ## [v1.2.0] - 2026-08-10
 
 ### 变更
