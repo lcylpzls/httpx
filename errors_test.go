@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/lcylpzls/errx"
+	"github.com/lcylpzls/testx"
 )
 
 // fakeNetError 实现 net.Error,用于覆盖超时/临时性网络错误分支。
@@ -38,12 +39,8 @@ func TestErrorCodesRegistered(t *testing.T) {
 		registered[c.Code] = true
 	}
 	for _, code := range codes {
-		if !registered[code] {
-			t.Errorf("错误码 %s 未注册", code)
-		}
-		if errx.Describe(code) == "" {
-			t.Errorf("错误码 %s 缺少说明", code)
-		}
+		testx.RequireTrue(t, registered[code])
+		testx.RequireNotEmpty(t, errx.Describe(code))
 	}
 }
 
@@ -66,9 +63,7 @@ func TestIsTimeout(t *testing.T) {
 		{"net error no timeout", fakeNetError{}, false},
 	}
 	for _, tc := range cases {
-		if got := IsTimeout(tc.err); got != tc.want {
-			t.Errorf("%s:IsTimeout = %v,want %v", tc.name, got, tc.want)
-		}
+		testx.RequireEqual(t, IsTimeout(tc.err), tc.want)
 	}
 }
 
@@ -90,9 +85,7 @@ func TestIsRetryable(t *testing.T) {
 		{"net plain", fakeNetError{}, true},
 	}
 	for _, tc := range cases {
-		if got := IsRetryable(tc.err); got != tc.want {
-			t.Errorf("%s:IsRetryable = %v,want %v", tc.name, got, tc.want)
-		}
+		testx.RequireEqual(t, IsRetryable(tc.err), tc.want)
 	}
 }
 
