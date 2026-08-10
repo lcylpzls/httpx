@@ -2,6 +2,12 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v1.3.0] - 2026-08-11
+
+### 新增
+
+- `ErrorStatus(err)` 与 `WriteErrorJSON(w, err)`：errx 错误到 HTTP 状态/JSON 响应的适配（替代 errx/httpx 子包）。
+
 ## [v1.2.5] - 2026-08-10
 
 ### 变更
