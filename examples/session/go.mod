@@ -2,7 +2,7 @@ module github.com/lcylpzls/httpx/examples/session
 
 go 1.26.5
 
-require github.com/lcylpzls/httpx v1.1.3
+require github.com/lcylpzls/httpx v1.2.2
 
 require (
 	github.com/lcylpzls/errx v1.4.0 // indirect
