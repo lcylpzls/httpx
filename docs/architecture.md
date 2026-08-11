@@ -1,6 +1,7 @@
 # httpx 架构设计
 
-> 状态:已实现(v1.3.1),本文描述当前架构;公开 API 以 `go doc` 与 README 为准。
+> 状态:已实现(v1.4.0),本文描述当前架构;公开 API 以 `go doc` 与 README 为准。
+> 实现主体位于 `internal/core`,根包仅保留公开 API(类型别名 + 转发)。
 
 ## 1. 总体分层
 
@@ -25,6 +26,7 @@
 | `logadapter.go` | logx 日志、请求摘要、慢请求 |
 | `metrics.go` | 指标钩子(与 dbx 同形态) |
 | `http3/` | 可选子包:quic-go/http3 RoundTripper 接入 |
+| `internal/core` | 全部实现与白盒测试;根包薄转发,保证公开 API 稳定 |
 
 ## 3. 协议层
 
@@ -70,14 +72,16 @@ httpx/
 ├── README.md
 ├── CHANGELOG.md
 ├── go.mod             # module github.com/lcylpzls/httpx
-├── client.go
-├── options.go
-├── transport.go
-├── retry.go
-├── response.go
-├── errors.go
-├── logadapter.go
-├── metrics.go
+├── api.go             # 根包薄转发(类型别名 + 公开函数)
+├── internal/core/     # 全部实现与白盒测试
+│   ├── client.go
+│   ├── options.go
+│   ├── transport.go
+│   ├── retry.go
+│   ├── response.go
+│   ├── errors.go
+│   ├── logadapter.go
+│   └── metrics.go
 ├── http3/             # 可选:H3 RoundTripper(quic-go)
 ├── docs/
 └── examples/

@@ -2,7 +2,7 @@
 
 ## 门槛(每个版本强制)
 
-- 语句覆盖率 100%(核心 + http3 子包);
+- 语句覆盖率 100%(根包 + internal/core + http3 子包);
 - `go vet` / `staticcheck` 零告警;
 - `go test -race` 全绿;
 - fuzz 目标至少 3 个(errors、backoff、redirect);
