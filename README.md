@@ -3,7 +3,7 @@
 基于 `net/http` 的高性能 HTTP 客户端库:连接复用、分层超时、可选重试,
 可适配 HTTP/1 / HTTP/2 / HTTP/3,与 errx / logx 打通。
 
-> 当前状态:**v1.0.0 正式版,API 已冻结**。
+> 当前状态:**v1.3.1**。
 
 ## 定位
 
@@ -79,20 +79,19 @@ client, err := httpx.New(httpx.WithProtocol(httpx.ProtocolHTTP3))
 - 语句覆盖率 100%,race、vet、staticcheck、fuzz 全绿;
 - govulncheck 漏洞扫描零告警;
 - 三平台 CI(ubuntu / windows / macos);
-- 性能基准与裸 `net/http` 同量级(见 docs/iteration-plan.md)。
+- 性能基准与裸 `net/http` 同量级(见 [docs/performance.md](docs/performance.md))。
 
 ## 稳定性承诺
 
 - 本库遵循[语义化版本](https://semver.org/lang/zh-CN/);
-- v1.0.0 起公开 API 冻结:新增以次版本发布,破坏性变更仅随主版本;
+- 家族约定:破坏性变更统一走 minor 版本(不强制主版本升级);
 - 行为修复与安全修复以补丁版本发布,并记录于 CHANGELOG;
 - 每个版本发布前执行:100% 覆盖率、race、staticcheck、fuzz、
-  govulncheck、apidiff 对比与三平台 CI。
+  govulncheck 与三平台 CI。
 
 ## 文档
 
 - [docs/README.md](docs/README.md) — 文档索引
-- [docs/client-research.md](docs/client-research.md) — 热门 HTTP 客户端调研手册
 - [docs/operations.md](docs/operations.md) — 运行手册(配置/指标/日志)
 - [docs/security.md](docs/security.md) — 安全模型
 - [examples/basic](examples/basic) — 基础请求与 JSON 解析

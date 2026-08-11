@@ -25,8 +25,7 @@
 ## API 兼容性
 
 - <1.0.0 允许有意的破坏性变更,须在 CHANGELOG 说明;
-- v1.0.0 起 API 冻结,破坏性变更仅随大版本;
-- CI 每次发布前执行 apidiff 对比上一 tag(informational)。
+- 破坏性变更按家族约定走 minor 版本,并在 CHANGELOG 显著标注。
 
 ## 依赖策略
 

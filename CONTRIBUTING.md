@@ -10,7 +10,7 @@
 
 ## 开发流程
 
-1. 从 `docs/iteration-plan.md` 选择或提出迭代条目;
+1. 从 CHANGELOG 与 [docs/README.md](docs/README.md) 中梳理待办;
 2. 在分支上实现,代码风格对齐现有文件(薄封装、显式命名、默认安全);
 3. 本地验证:
 
@@ -21,8 +21,7 @@ go test -race -coverprofile=coverage.out ./...
 go tool cover -func coverage.out
 ```
 
-要求语句覆盖率 100%;新增公开 API 必须同步更新
-`docs/api-design.md`、README 与 CHANGELOG。
+要求语句覆盖率 100%;新增公开 API 必须同步更新 README 与 CHANGELOG。
 
 ## 提交规范
 
