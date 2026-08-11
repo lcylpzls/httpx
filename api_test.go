@@ -16,7 +16,7 @@ import (
 
 // TestPublicAPI 是根包黑盒冒烟测试，覆盖全部公开转发函数。
 func TestPublicAPI(t *testing.T) {
-	if Version != "v1.4.0" {
+	if Version != "v1.4.1" {
 		t.Fatalf("Version 不符：%s", Version)
 	}
 
